@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ESP32-S3 OpenOCD (Built-in USB JTAG)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/${command:espIdf.getProjectName}.elf",
+      "miDebuggerPath": "D:\\Espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20260121\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gdb.exe",
+      "miDebuggerServerAddress": "localhost:3333",
+      "stopAtEntry": false,
+      "preLaunchTask": "ESP-IDF: OpenOCD Server"
+    },
+    {
+      "name": "ESP32-S3 GDB (Remote Attach)",
+      "type": "cppdbg",
+      "request": "attach",
+      "program": "${workspaceFolder}/build/${command:espIdf.getProjectName}.elf",
+      "miDebuggerPath": "D:\\Espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20260121\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gdb.exe",
+      "miDebuggerServerAddress": "localhost:3333"
+    }
+  ]
+}

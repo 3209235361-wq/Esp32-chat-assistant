@@ -1,0 +1,45 @@
+{
+  "configurations": [
+    {
+      "name": "ESP-IDF",
+      "compilerPath": "D:\\Espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20260121\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+      "intelliSenseMode": "gcc-x86",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${config:idf.currentSetup}/components/**",
+        "${config:idf.currentSetup}/components/freertos/FreeRTOS-Kernel/include/**",
+        "${config:idf.currentSetup}/components/freertos/config/include/**",
+        "${config:idf.currentSetup}/components/freertos/esp_additions/include/**",
+        "${config:idf.currentSetup}/components/hal/include/**",
+        "${config:idf.currentSetup}/components/esp_system/include/**",
+        "${config:idf.currentSetup}/components/log/include/**",
+        "${config:idf.currentSetup}/components/soc/include/**",
+        "${config:idf.currentSetup}/components/newlib/platform_include/**",
+        "${config:idf.currentSetup}/components/heap/include/**",
+        "${config:idf.currentSetup}/components/nvs_flash/include/**",
+        "${config:idf.currentSetup}/components/esp_event/include/**",
+        "${config:idf.currentSetup}/components/esp_wifi/include/**",
+        "${config:idf.currentSetup}/components/esp_netif/include/**",
+        "${config:idf.currentSetup}/components/lwip/lwip/src/include/**",
+        "${config:idf.currentSetup}/components/spi_flash/include/**",
+        "${config:idf.currentSetup}/components/esp_common/include/**",
+        "${config:idf.currentSetup}/components/xtensa/include/**",
+        "${config:idf.currentSetup}/components/xtensa/esp32s3/include/**"
+      ],
+      "defines": [
+        "ESP_PLATFORM"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}",
+          "${config:idf.currentSetup}/components"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    }
+  ],
+  "version": 4
+}

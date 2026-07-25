@@ -1,0 +1,53 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "idf.extensionActivationMode": "always",
+  "idf.currentSetup": "D:/Espressif/frameworks/esp-idf-v5.4.4/",
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32s3"
+  },
+  "idf.portWin": "COM3",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.flashBaudRate": "115200",
+  "idf.monitorBaudRate": "115200",
+  "idf.buildPath": "${workspaceFolder}/build",
+  "idf.flashType": "UART",
+  "clangd.path": "D:\\Espressif\\tools\\esp-clang\\esp-18.1.2_20240912\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=d:\\ESP32_project\\sample_project\\build"
+  ],
+  "files.associations": {
+    "*.h": "c",
+    "*.c": "c",
+    "freertos.h": "c",
+    "task.h": "c",
+    "queue.h": "c",
+    "semphr.h": "c",
+    "esp_system.h": "c",
+    "esp_log.h": "c",
+    "nvs_flash.h": "c",
+    "esp_wifi.h": "c",
+    "esp_event.h": "c",
+    "esp_netif.h": "c",
+    "driver/gpio.h": "c",
+    "driver/uart.h": "c",
+    "driver/spi_master.h": "c",
+    "driver/i2c.h": "c",
+    "sdkconfig.h": "c"
+  },
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "editor.formatOnSave": false,
+  "terminal.integrated.profiles.windows": {
+    "ESP-IDF Command Prompt": {
+      "path": "${env:windir}\\System32\\cmd.exe",
+      "args": [
+        "/k",
+        "D:\\Espressif\\frameworks\\esp-idf-v5.4.4\\export.bat"
+      ]
+    }
+  },
+  "terminal.integrated.defaultProfile.windows": "ESP-IDF Command Prompt"
+}
