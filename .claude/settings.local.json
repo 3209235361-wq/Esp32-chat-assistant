@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"/d/ESP32_project/sample_project/components/http_client\")",
+      "Bash(where idf.py)"
+    ],
+    "additionalDirectories": [
+      "D:\\ESP32_project\\sample_project\\components"
+    ]
+  }
+}

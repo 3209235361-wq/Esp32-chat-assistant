@@ -12,7 +12,7 @@ static uint8_t framebuffer[SSD1306_WIDTH * SSD1306_HEIGHT / 8];
 static const uint8_t init_cmds[] = {
     0xAE,         // display off
     0xD5, 0x80,   // clock div
-    0xA8, 0x3F,   // mux ratio �? 64
+    0xA8, 0x3F,   // mux ratio �? 64
     0xD3, 0x00,   // display offset
     0x40,         // start line
     0x8D, 0x14,   // charge pump
@@ -101,6 +101,21 @@ void ssd1306_draw_string(int x, int y, const char *str)
         if (x > SSD1306_WIDTH - 6) {
             x = 0;
             y += 8;
+        }
+    }
+}
+
+void ssd1306_clear_row(int y)
+{
+    if (y < 0 || y >= SSD1306_HEIGHT) return;
+    int page = y / 8;
+    for (int x = 0; x < SSD1306_WIDTH; x++) {
+        framebuffer[x + page * SSD1306_WIDTH] = 0;
+    }
+    // 如果文字跨了两个 page，清第二个
+    if (y % 8 != 0 && page + 1 < 8) {
+        for (int x = 0; x < SSD1306_WIDTH; x++) {
+            framebuffer[x + (page + 1) * SSD1306_WIDTH] = 0;
         }
     }
 }

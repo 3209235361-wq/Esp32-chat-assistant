@@ -57,9 +57,9 @@ void Audio_Init(void)
     i2s_channel_init_std_mode(tx_handle,&std_cfg);
     i2s_channel_init_std_mode(rx_handle,&std_cfg);
 
-    // ========== 第4步：启用通道 ==========
-    i2s_channel_enable(rx_handle);
+    // ========== 第4步：启用通道（TX必须先于RX，TX提供时钟）==========
     i2s_channel_enable(tx_handle);
+    i2s_channel_enable(rx_handle);
 }
 
 // 读取麦克风数据
