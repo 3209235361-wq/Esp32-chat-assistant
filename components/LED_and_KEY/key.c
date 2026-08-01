@@ -13,9 +13,6 @@ key_state_t KEY_De_trembing(gpio_num_t pin){
         if(gpio_get_level(pin)==0){
             return KEY_PRESSED;
         }
-        else{
-            return KEY_RELEASED;
-        }
     }
     return KEY_NOT_PRESSED;
 }

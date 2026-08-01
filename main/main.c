@@ -75,13 +75,9 @@ void Task_Key(void *parameter){
             xQueueSend(rec_queue, &cmd, portMAX_DELAY);
             xTaskNotifyIndexed(oled_task,0,Press,eSetValueWithOverwrite);
         }
-        else if(status==KEY_RELEASED){
+        else if(status==KEY_NOT_PRESSED&&last_status){
             cmd=CMD_STOP_REC;
-            xQueueSend(rec_queue, &cmd, portMAX_DELAY);   
-        }
-        else{
-            vTaskDelay(pdMS_TO_TICKS(20));
-            continue;
+            xQueueSend(rec_queue, &cmd, portMAX_DELAY);
         }
         //边沿检测：以防重复发CMD_START_REC
         last_status=(status==KEY_PRESSED);
@@ -102,6 +98,7 @@ void Task_Handle_Play(void *parameter){
         amp_enable(true);
         xTaskNotifyIndexed(oled_task,0,Play,eSetValueWithOverwrite);
         spk_write(play_buf, rec_len);
+        vTaskDelay(pdMS_TO_TICKS(200));
         amp_enable(false);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -150,11 +147,10 @@ void app_main(void)
 
     rec_queue=xQueueCreate(1, sizeof(cmd_t));
     audio_queue=xQueueCreate(1, sizeof(size_t));
-    xTaskCreate(Task_Record, "Task_Record", 2048, NULL, 4, NULL);
-    xTaskCreate(Task_Key, "Task_Key", 2048, NULL, 3, NULL);
-    xTaskCreate(Task_Handle_Play, "Task_Handle_Play", 8192, NULL, 2, NULL);
-    xTaskCreate(Task_OLED_Display, "Task_OLED_Display", 2048, NULL, 1, NULL);
-    oled_task=xTaskGetHandle("Task_OLED_Display");
+    xTaskCreate(Task_Record, "Rec", 2048, NULL, 4, NULL);
+    xTaskCreate(Task_Key, "Key", 2048, NULL, 3, NULL);
+    xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
+    xTaskCreate(Task_OLED_Display, "OLED", 2048, NULL, 1, &oled_task);
 
 
     while (1){
