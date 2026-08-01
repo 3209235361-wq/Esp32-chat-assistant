@@ -62,7 +62,7 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     snprintf(url, sizeof(url), "http://%s:%d/voice?sr=16000&bits=16&ch=1",
              g_host, g_port);
 
-    // 设置全局接收缓冲，事件回调会往里写
+    // 设置全局接收缓冲，事件回调会往里写数据
     g_recv_buf   = (uint8_t *)pcm_out;
     g_recv_max   = (*len_out) * sizeof(int16_t);
     g_recv_total = 0;

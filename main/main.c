@@ -3,27 +3,124 @@
 #include "audio.h"
 #include "wifi.h"
 #include "ssd1306.h"
+#include "key.h"
 #include "voice_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 
 // ---- 改这里 ----
 #define WIFI_SSID      "宇智波皮的iPhone"
 #define WIFI_PASSWORD  "77777777"
+
 #define SERVER_IP      "172.20.10.3"   // 手机热点：172.20.10.x，连同一热点后查电脑IP
 #define SERVER_PORT    8006
-#define RECORD_SEC     4                // 录音秒数
 
 #define I2C_SCL_PIN    20
 #define I2C_SDA_PIN    21
-#define MAX_SAMPLES    (SAMPLE_RATE * RECORD_SEC)      // 录音缓冲大小
+
+#define RECORD_SEC     30                // 假设最大录音秒数
+#define MAX_SAMPLES    (SAMPLE_RATE * RECORD_SEC)      // 最大录音缓冲大小
 #define RECV_MAX       (SAMPLE_RATE * 20)              // 接收缓冲最大 20 秒
 
 static int16_t *rec_buf  = NULL;   // 录音缓冲（malloc 到 PSRAM）
 static int16_t *play_buf = NULL;   // 播放缓冲
 
+QueueHandle_t rec_queue = NULL;
+QueueHandle_t audio_queue = NULL;
+TaskHandle_t oled_task = NULL;
+
+//录音标志
+typedef enum cmd{CMD_START_REC, CMD_STOP_REC} cmd_t;
+//OLED Display
+typedef enum str{
+    Press = 0,
+    Record = 1,
+    Send = 2,
+    Play = 3,
+    Failed = 4,
+    Empty = 5
+} str_state;
+char *str[6]={"Pressing key...","Recording...",
+    "Sending to AI...","Playing reply...","Sending failed","Empty queue"};
+
+
+void Task_Record(void *parameter){
+    cmd_t cmd;
+    size_t rec_len=0;
+    while(1){
+        xQueueReceive(rec_queue, &cmd, portMAX_DELAY);
+        if(cmd!=CMD_START_REC){continue;}
+        //cmd == CMD_START_REC 就发通知
+        xTaskNotifyIndexed(oled_task,0,Record,eSetValueWithOverwrite);
+        rec_len=0;        
+        while(rec_len<MAX_SAMPLES){
+            rec_buf[rec_len++]=mic_read();
+            if(xQueueReceive(rec_queue, &cmd, 0)==pdTRUE&&cmd==CMD_STOP_REC){
+                break;
+            }
+        }
+        xQueueSend(audio_queue, &rec_len, portMAX_DELAY);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+void Task_Key(void *parameter){
+    key_state_t status=KEY_NOT_PRESSED;
+    bool last_status=false;
+    cmd_t cmd;
+    while(1){
+        status=KEY_De_trembing(KEY_PIN);
+        if(status==KEY_PRESSED&&!last_status){
+            cmd=CMD_START_REC;
+            xQueueSend(rec_queue, &cmd, portMAX_DELAY);
+            xTaskNotifyIndexed(oled_task,0,Press,eSetValueWithOverwrite);
+        }
+        else if(status==KEY_RELEASED){
+            cmd=CMD_STOP_REC;
+            xQueueSend(rec_queue, &cmd, portMAX_DELAY);   
+        }
+        else{
+            vTaskDelay(pdMS_TO_TICKS(20));
+            continue;
+        }
+        //边沿检测：以防重复发CMD_START_REC
+        last_status=(status==KEY_PRESSED);
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+void Task_Handle_Play(void *parameter){
+    size_t rec_len=0;
+    while(1){
+        if(xQueueReceive(audio_queue, &rec_len, portMAX_DELAY)==pdTRUE){
+            xTaskNotifyIndexed(oled_task,0,Send,eSetValueWithOverwrite);
+            bool ok=voice_send_receive(rec_buf, rec_len, play_buf, &rec_len);
+            if(ok==false||rec_len==0){
+                xTaskNotifyIndexed(oled_task,0,Failed,eSetValueWithOverwrite);
+                continue;
+            }    
+        }
+        amp_enable(true);
+        xTaskNotifyIndexed(oled_task,0,Play,eSetValueWithOverwrite);
+        spk_write(play_buf, rec_len);
+        amp_enable(false);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+void Task_OLED_Display(void *parameter){
+    uint32_t state=Empty;
+    while(1){
+        xTaskNotifyWaitIndexed(0,0,0,&state,portMAX_DELAY);//for recording
+        ssd1306_clear_row(24);
+        ssd1306_draw_string(0,24,str[state]);
+        ssd1306_update();        
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
 void app_main(void)
 {
+    KEY_Init();
     // ---- 1. OLED 初始化 ----
     ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);
     ssd1306_draw_string(0, 0, "Booting...");
@@ -51,72 +148,16 @@ void app_main(void)
     }
     printf("[Init] rec=%d samples  play=%d samples\n", MAX_SAMPLES, RECV_MAX);
 
-    // ---- 5. 主循环：录音 → 发送 → 收回复 → 播放 ----
-    char line1[22] = {0};
-    char line2[22] = {0};
+    rec_queue=xQueueCreate(1, sizeof(cmd_t));
+    audio_queue=xQueueCreate(1, sizeof(size_t));
+    xTaskCreate(Task_Record, "Task_Record", 2048, NULL, 4, NULL);
+    xTaskCreate(Task_Key, "Task_Key", 2048, NULL, 3, NULL);
+    xTaskCreate(Task_Handle_Play, "Task_Handle_Play", 8192, NULL, 2, NULL);
+    xTaskCreate(Task_OLED_Display, "Task_OLED_Display", 2048, NULL, 1, NULL);
+    oled_task=xTaskGetHandle("Task_OLED_Display");
 
-    while (1) {
-        // ====== 5a. 等待按键触发（简化为等 1 秒）======
-        ssd1306_clear_row(0);
-        ssd1306_clear_row(16);
-        snprintf(line1, sizeof(line1), "Ready.  %ds rec", RECORD_SEC);
-        ssd1306_draw_string(0, 0,  line1);
-        ssd1306_draw_string(0, 16, "Press key...");
-        ssd1306_update();
-        vTaskDelay(pdMS_TO_TICKS(1000));
 
-        // ====== 5b. 录音 ======
-        amp_enable(false);
-        ssd1306_clear_row(24);
-        ssd1306_draw_string(0, 24, "Recording...");
-        ssd1306_update();
-
-        for (int i = 0; i < MAX_SAMPLES; i++) {
-            rec_buf[i] = mic_read();
-        }
-        printf("[录音] %d samples done\n", MAX_SAMPLES);
-
-        // ====== 5c. 发送到后端 ======
-        ssd1306_clear_row(24);
-        ssd1306_draw_string(0, 24, "Sending to AI...");
-        ssd1306_update();
-
-        size_t reply_len = RECV_MAX;
-        bool ok = voice_send_receive(rec_buf, MAX_SAMPLES, play_buf, &reply_len);
-
-        if (!ok || reply_len == 0) {
-            ssd1306_clear_row(24);
-            ssd1306_draw_string(0, 24, "No reply       ");
-            ssd1306_update();
-            vTaskDelay(pdMS_TO_TICKS(2000));
-            continue;
-        }
-
-        // ====== 5d. 显示识别结果 ======
-        const char *user = voice_last_user_text();
-        const char *ai   = voice_last_ai_text();
-        printf("[结果] 用户: %s\n", user);
-        printf("[结果] AI:   %s\n", ai);
-
-        snprintf(line1, sizeof(line1), "%.20s", user);
-        snprintf(line2, sizeof(line2), "%.20s", ai);
-        ssd1306_clear_row(0);
-        ssd1306_clear_row(16);
-        ssd1306_draw_string(0, 0,  line1);
-        ssd1306_draw_string(0, 16, line2);
-
-        // ====== 5e. 播放 AI 回复 ======
-        ssd1306_clear_row(32);
-        ssd1306_draw_string(0, 32, "Playing reply...");
-        ssd1306_update();
-
-        amp_enable(true);
-        spk_write(play_buf, reply_len);
-        amp_enable(false);
-
-        ssd1306_clear_row(32);
-        ssd1306_draw_string(0, 32, "Done.");
-        ssd1306_update();
+    while (1){
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }

@@ -25,6 +25,7 @@ DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY",  "")
 DEEPSEEK_URL  = "https://api.deepseek.com"
 SYSTEM_PROMPT = "你是一个友好的语音助手，回答简洁，不超过3句话。"
 
+
 dashscope.api_key = DASHSCOPE_KEY
 
 
