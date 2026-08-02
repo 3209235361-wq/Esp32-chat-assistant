@@ -86,19 +86,22 @@ void Task_Key(void *parameter){
 }
 void Task_Handle_Play(void *parameter){
     size_t rec_len=0;
+    size_t play_len=0;
     while(1){
         if(xQueueReceive(audio_queue, &rec_len, portMAX_DELAY)==pdTRUE){
             xTaskNotifyIndexed(oled_task,0,Send,eSetValueWithOverwrite);
-            bool ok=voice_send_receive(rec_buf, rec_len, play_buf, &rec_len);
-            if(ok==false||rec_len==0){
+            play_len= RECV_MAX;
+            bool ok=voice_send_receive(rec_buf, rec_len, play_buf, &play_len);
+            if(ok==false||play_len==0){
                 xTaskNotifyIndexed(oled_task,0,Failed,eSetValueWithOverwrite);
                 continue;
             }    
         }
         amp_enable(true);
         xTaskNotifyIndexed(oled_task,0,Play,eSetValueWithOverwrite);
-        spk_write(play_buf, rec_len);
-        vTaskDelay(pdMS_TO_TICKS(200));
+        //播放容量改为最大，确保播放完整（ai回复大小一般会大于录音大小）
+        spk_write(play_buf, play_len);
+        vTaskDelay(pdMS_TO_TICKS(300));
         amp_enable(false);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
