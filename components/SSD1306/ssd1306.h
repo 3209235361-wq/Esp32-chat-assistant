@@ -5,6 +5,19 @@
 
 #define SSD1306_WIDTH  128
 #define SSD1306_HEIGHT 64
+typedef enum str_state{
+    Press = 0,
+    Record = 1,
+    Send = 2,
+    Play = 3,
+    Failed = 4,
+    Empty = 5
+} str_state;
+
+typedef enum str_command{
+    LED_ON = 0,
+    LED_OFF = 1,
+} str_command;
 
 void ssd1306_init(uint8_t sda, uint8_t scl);
 void ssd1306_fill(uint8_t color);

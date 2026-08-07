@@ -14,9 +14,6 @@ typedef enum {
     KEY_RELEASED
 } key_state_t;
 
-
-
-
 void KEY_Init(void);
 key_state_t KEY_De_trembing(gpio_num_t pin);
 

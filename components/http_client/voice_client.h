@@ -18,3 +18,4 @@ void voice_set_server(const char *host, int port);
 // ---- 获取最后一次的识别和回复文字（给 OLED 显示）----
 const char *voice_last_user_text(void);
 const char *voice_last_ai_text(void);
+const char *voice_last_command(void);

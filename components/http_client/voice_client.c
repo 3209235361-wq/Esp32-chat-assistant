@@ -8,6 +8,9 @@ static int  g_port = 8006;
 static char g_user_text[256] = "";
 static char g_ai_text[256]   = "";
 
+//接受指令
+static char g_command[16] = "none";
+
 // 响应体接收用的指针（在事件回调里写入）
 static uint8_t *g_recv_buf = NULL;
 static size_t   g_recv_max = 0;
@@ -24,6 +27,7 @@ void voice_set_server(const char *host, int port)
 
 const char *voice_last_user_text(void) { return g_user_text; }
 const char *voice_last_ai_text(void)   { return g_ai_text;   }
+const char *voice_last_command(void)   { return g_command;   }
 
 // ================================================================
 //  事件回调 — 捕获响应 header 和数据
@@ -32,12 +36,16 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
     switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER:
-        if (strcmp(evt->header_key, "X-User-Text") == 0) {
+        if (strcmp(evt->header_key, "x-user-text") == 0) {
             strncpy(g_user_text, evt->header_value, sizeof(g_user_text) - 1);
             printf("[HTTP] 用户: %s\n", g_user_text);
-        } else if (strcmp(evt->header_key, "X-AI-Text") == 0) {
+        } else if (strcmp(evt->header_key, "x-ai-text") == 0) {
             strncpy(g_ai_text, evt->header_value, sizeof(g_ai_text) - 1);
             printf("[HTTP] AI: %s\n", g_ai_text);
+        }
+        else if(strcmp(evt->header_key,"x-command")==0){
+            strncpy(g_command, evt->header_value, sizeof(g_command) - 1);
+            printf("[HTTP] 指令: %s\n", g_command);
         }
         break;
     case HTTP_EVENT_ON_DATA:

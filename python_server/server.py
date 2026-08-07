@@ -147,6 +147,19 @@ async def voice_http(request: Request):
     wav_bytes  = pcm_to_wav(pcm_body, sample_rate, channels, bit_depth)
     pcm, user, ai = await voice_pipeline(wav_bytes)
 
+    command = "none"
+    if "灯" in user:
+        if "开" in user or "亮" in user:
+            command = "led_on"
+        elif "关" in user or "灭" in user:
+            command = "led_off"
+    headers = {
+        "X-User-Text":  quote(user, safe=""),
+        "X-AI-Text":    quote(ai, safe=""),
+    }
+    if command != "none":
+        headers["X-Command"] = command
+
     if not pcm:
         return Response(content=b"", status_code=204, media_type="application/octet-stream")
 
@@ -154,10 +167,7 @@ async def voice_http(request: Request):
     return Response(
         content=pcm,
         media_type="application/octet-stream",
-        headers={
-            "X-User-Text":  quote(user, safe=""),
-            "X-AI-Text":    quote(ai, safe=""),
-        },
+        headers = headers,
     )
 
 

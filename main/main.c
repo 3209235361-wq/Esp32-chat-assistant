@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "audio.h"
 #include "wifi.h"
 #include "ssd1306.h"
 #include "key.h"
+#include "led.h"
+#include "Monitor.h"
 #include "voice_client.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -25,25 +28,22 @@
 
 static int16_t *rec_buf  = NULL;   // 录音缓冲（malloc 到 PSRAM）
 static int16_t *play_buf = NULL;   // 播放缓冲
+static char command[16];
 
 QueueHandle_t rec_queue = NULL;
 QueueHandle_t audio_queue = NULL;
+QueueHandle_t command_queue = NULL;
 TaskHandle_t oled_task = NULL;
 
 //录音标志
 typedef enum cmd{CMD_START_REC, CMD_STOP_REC} cmd_t;
 //OLED Display
-typedef enum str{
-    Press = 0,
-    Record = 1,
-    Send = 2,
-    Play = 3,
-    Failed = 4,
-    Empty = 5
-} str_state;
-char *str[6]={"Pressing key...","Recording...",
-    "Sending to AI...","Playing reply...","Sending failed","Empty queue"};
 
+char *oled_state[6]={"Pressing key...","Recording...",
+    "Sending to AI...","Playing reply...","Sending failed","Empty queue"};
+char *oled_command[2]={"led_on","led_off"};
+
+// static int speed=0;
 
 void Task_Record(void *parameter){
     cmd_t cmd;
@@ -95,7 +95,10 @@ void Task_Handle_Play(void *parameter){
             if(ok==false||play_len==0){
                 xTaskNotifyIndexed(oled_task,0,Failed,eSetValueWithOverwrite);
                 continue;
-            }    
+            }
+            strncpy(command,voice_last_command(),sizeof(command)-1); 
+            command[sizeof(command)-1]='\0';
+            xQueueSend(command_queue, command , portMAX_DELAY);
         }
         amp_enable(true);
         xTaskNotifyIndexed(oled_task,0,Play,eSetValueWithOverwrite);
@@ -107,13 +110,36 @@ void Task_Handle_Play(void *parameter){
     }
 }
 
+void Task_Command(void *parameter){
+    static char temp_command[16];
+    while(1){
+        if(xQueueReceive(command_queue, temp_command, portMAX_DELAY)==pdTRUE){
+            if(strcmp(temp_command,"led_on")==0){
+                Set_Level_LED(PIN, 0);
+                xTaskNotifyIndexed(oled_task,1,LED_ON,eSetValueWithOverwrite);
+            }
+            else if(strcmp(temp_command,"led_off")==0){
+                Set_Level_LED(PIN, 1);
+                xTaskNotifyIndexed(oled_task,1,LED_OFF,eSetValueWithOverwrite);
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
 void Task_OLED_Display(void *parameter){
     uint32_t state=Empty;
+    uint32_t command=LED_ON;
     while(1){
-        xTaskNotifyWaitIndexed(0,0,0,&state,portMAX_DELAY);//for recording
+        xTaskNotifyWaitIndexed(0,0,0,&state,pdMS_TO_TICKS(100));
+        xTaskNotifyWaitIndexed(1,0,0,&command,pdMS_TO_TICKS(100));
         ssd1306_clear_row(24);
-        ssd1306_draw_string(0,24,str[state]);
-        ssd1306_update();        
+        ssd1306_draw_string(0,24,oled_state[state]);
+        ssd1306_update();  
+        ssd1306_clear_row(40);
+        ssd1306_draw_string(0,40,oled_command[command]);
+        ssd1306_update();  
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
@@ -121,6 +147,9 @@ void Task_OLED_Display(void *parameter){
 void app_main(void)
 {
     KEY_Init();
+    LED_Init();
+    // Monitor_Init();
+    
     // ---- 1. OLED 初始化 ----
     ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);
     ssd1306_draw_string(0, 0, "Booting...");
@@ -150,10 +179,13 @@ void app_main(void)
 
     rec_queue=xQueueCreate(1, sizeof(cmd_t));
     audio_queue=xQueueCreate(1, sizeof(size_t));
+    command_queue=xQueueCreate(1, sizeof(command));
+
     xTaskCreate(Task_Record, "Rec", 2048, NULL, 4, NULL);
     xTaskCreate(Task_Key, "Key", 2048, NULL, 3, NULL);
     xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
     xTaskCreate(Task_OLED_Display, "OLED", 2048, NULL, 1, &oled_task);
+    xTaskCreate(Task_Command, "Command", 2048, NULL, 1, NULL);
 
 
     while (1){
