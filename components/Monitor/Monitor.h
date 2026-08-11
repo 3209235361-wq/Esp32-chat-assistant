@@ -6,6 +6,8 @@
 #define MOTOR_PWMA 10
 #define PWM_FREQ 10000
 
+#define FIXED_SPEED 100
+
 void Monitor_Init(void);
 void motor_set_speed(int speed);
 void motor_break(void);

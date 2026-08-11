@@ -17,6 +17,8 @@ typedef enum str_state{
 typedef enum str_command{
     LED_ON = 0,
     LED_OFF = 1,
+    MOTOR_ON = 2,
+    MOTOR_OFF = 3,
 } str_command;
 
 void ssd1306_init(uint8_t sda, uint8_t scl);

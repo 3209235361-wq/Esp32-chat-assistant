@@ -41,7 +41,7 @@ typedef enum cmd{CMD_START_REC, CMD_STOP_REC} cmd_t;
 
 char *oled_state[6]={"Pressing key...","Recording...",
     "Sending to AI...","Playing reply...","Sending failed","Empty queue"};
-char *oled_command[2]={"led_on","led_off"};
+char *oled_command[4]={"led_on","led_off","motor_on","motor_off"};
 
 // static int speed=0;
 
@@ -122,6 +122,14 @@ void Task_Command(void *parameter){
                 Set_Level_LED(PIN, 1);
                 xTaskNotifyIndexed(oled_task,1,LED_OFF,eSetValueWithOverwrite);
             }
+            else if(strcmp(temp_command,"motor_on")==0){
+                motor_set_speed(FIXED_SPEED);
+                xTaskNotifyIndexed(oled_task,1,MOTOR_ON,eSetValueWithOverwrite);
+            }
+            else if(strcmp(temp_command,"motor_off")==0){
+                motor_set_speed(0);
+                xTaskNotifyIndexed(oled_task,1,MOTOR_OFF,eSetValueWithOverwrite);
+            }
         }
 
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -148,7 +156,7 @@ void app_main(void)
 {
     KEY_Init();
     LED_Init();
-    // Monitor_Init();
+    Monitor_Init();
     
     // ---- 1. OLED 初始化 ----
     ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);
@@ -187,8 +195,7 @@ void app_main(void)
     xTaskCreate(Task_OLED_Display, "OLED", 2048, NULL, 1, &oled_task);
     xTaskCreate(Task_Command, "Command", 2048, NULL, 1, NULL);
 
-
-    while (1){
+    while (1){   
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
