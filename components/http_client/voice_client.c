@@ -30,6 +30,36 @@ const char *voice_last_ai_text(void)   { return g_ai_text;   }
 const char *voice_last_command(void)   { return g_command;   }
 
 // ================================================================
+//  url_decode() — 把 %XX 还原成原始字节（中文才能正常打印）
+//  服务器端用 quote() 对中文做了 URL 编码，解码后是 UTF-8 字节
+// ================================================================
+static int _hex_val(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static void url_decode(char *dst, size_t dst_max, const char *src)
+{
+    size_t i = 0, j = 0;
+    while (src[i] && j + 1 < dst_max) {
+        if (src[i] == '%' && src[i+1] && src[i+2]) {
+            int hi = _hex_val(src[i+1]);
+            int lo = _hex_val(src[i+2]);
+            if (hi >= 0 && lo >= 0) {
+                dst[j++] = (char)((hi << 4) | lo);
+                i += 3;
+                continue;
+            }
+        }
+        dst[j++] = src[i++];
+    }
+    dst[j] = '\0';
+}
+
+// ================================================================
 //  事件回调 — 捕获响应 header 和数据
 // ================================================================
 static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
@@ -37,10 +67,10 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     switch (evt->event_id) {
     case HTTP_EVENT_ON_HEADER:
         if (strcmp(evt->header_key, "x-user-text") == 0) {
-            strncpy(g_user_text, evt->header_value, sizeof(g_user_text) - 1);
+            url_decode(g_user_text, sizeof(g_user_text), evt->header_value);
             printf("[HTTP] 用户: %s\n", g_user_text);
         } else if (strcmp(evt->header_key, "x-ai-text") == 0) {
-            strncpy(g_ai_text, evt->header_value, sizeof(g_ai_text) - 1);
+            url_decode(g_ai_text, sizeof(g_ai_text), evt->header_value);
             printf("[HTTP] AI: %s\n", g_ai_text);
         }
         else if(strcmp(evt->header_key,"x-command")==0){

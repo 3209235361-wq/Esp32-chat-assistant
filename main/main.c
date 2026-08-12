@@ -34,6 +34,7 @@ QueueHandle_t rec_queue = NULL;
 QueueHandle_t audio_queue = NULL;
 QueueHandle_t command_queue = NULL;
 TaskHandle_t oled_task = NULL;
+SemaphoreHandle_t for_record = NULL;
 
 //录音标志
 typedef enum cmd{CMD_START_REC, CMD_STOP_REC} cmd_t;
@@ -53,7 +54,8 @@ void Task_Record(void *parameter){
         if(cmd!=CMD_START_REC){continue;}
         //当cmd == CMD_START_REC 就发通知
         xTaskNotifyIndexed(oled_task,0,Record,eSetValueWithOverwrite);
-        rec_len=0;        
+        rec_len=0;
+        xSemaphoreTake(for_record , portMAX_DELAY);        
         while(rec_len<MAX_SAMPLES){
             rec_buf[rec_len++]=mic_read();
             if(xQueueReceive(rec_queue, &cmd, 0)==pdTRUE&&cmd==CMD_STOP_REC){
@@ -61,6 +63,7 @@ void Task_Record(void *parameter){
             }
         }
         xQueueSend(audio_queue, &rec_len, portMAX_DELAY);
+        xSemaphoreGive(for_record);
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
@@ -91,7 +94,9 @@ void Task_Handle_Play(void *parameter){
         if(xQueueReceive(audio_queue, &rec_len, portMAX_DELAY)==pdTRUE){
             xTaskNotifyIndexed(oled_task,0,Send,eSetValueWithOverwrite);
             play_len= RECV_MAX;
+            xSemaphoreTake(for_record , portMAX_DELAY);
             bool ok=voice_send_receive(rec_buf, rec_len, play_buf, &play_len);
+            xSemaphoreGive(for_record);
             if(ok==false||play_len==0){
                 xTaskNotifyIndexed(oled_task,0,Failed,eSetValueWithOverwrite);
                 continue;
@@ -193,6 +198,7 @@ void app_main(void)
     rec_queue=xQueueCreate(1, sizeof(cmd_t));
     audio_queue=xQueueCreate(1, sizeof(size_t));
     command_queue=xQueueCreate(1, sizeof(command));
+    for_record=xSemaphoreCreateMutex();
 
     xTaskCreate(Task_Record, "Rec", 2048, NULL, 4, NULL);
     xTaskCreate(Task_Key, "Key", 2048, NULL, 3, NULL);
