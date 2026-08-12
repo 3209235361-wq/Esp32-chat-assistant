@@ -24,6 +24,23 @@ DASHSCOPE_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY",  "")
 DEEPSEEK_URL  = "https://api.deepseek.com"
 SYSTEM_PROMPT = "你是一个友好的语音助手，回答简洁，不超过3句话。"
+SPECIAL_REPLIES = {
+    "开灯" : "好的，灯已打开",
+    "关灯" : "好的，灯已关闭",
+    "亮灯" : "好的，灯已亮",
+    "灭灯" : "好的，灯已灭",
+    "开电机" : "好的，电机已打开",
+    "关电机" : "好的，电机已关闭",
+    "电机转" : "好的，电机已转",
+    "电机停" : "好的，电机已停止",
+}
+
+def get_special_reply(user_text: str) -> str | None:
+    # 检查是否有特殊回复
+    for key, reply in SPECIAL_REPLIES.items():
+        if key in user_text:
+            return reply
+    return None
 
 
 dashscope.api_key = DASHSCOPE_KEY
@@ -162,7 +179,13 @@ async def voice_pipeline(wav_bytes: bytes, history: list[dict] = None
     user_text = await speech_to_text(wav_bytes)
     if not user_text:
         return b"", "", ""
-    ai_text   = await llm_chat(user_text, history)
+    reply = get_special_reply(user_text)
+    if reply:
+        ai_text = reply
+        print(f"[Special Reply] → {ai_text}")
+    else:
+        ai_text = await llm_chat(user_text, history)
+    
     if not ai_text:
         return b"", user_text, ""
     mp3       = await text_to_speech(ai_text)

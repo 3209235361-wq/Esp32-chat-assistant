@@ -51,7 +51,7 @@ void Task_Record(void *parameter){
     while(1){
         xQueueReceive(rec_queue, &cmd, portMAX_DELAY);
         if(cmd!=CMD_START_REC){continue;}
-        //cmd == CMD_START_REC 就发通知
+        //当cmd == CMD_START_REC 就发通知
         xTaskNotifyIndexed(oled_task,0,Record,eSetValueWithOverwrite);
         rec_len=0;        
         while(rec_len<MAX_SAMPLES){
@@ -142,11 +142,11 @@ void Task_OLED_Display(void *parameter){
     while(1){
         xTaskNotifyWaitIndexed(0,0,0,&state,pdMS_TO_TICKS(100));
         xTaskNotifyWaitIndexed(1,0,0,&command,pdMS_TO_TICKS(100));
-        ssd1306_clear_row(24);
-        ssd1306_draw_string(0,24,oled_state[state]);
+        ssd1306_clear_row(32);
+        ssd1306_draw_string(0,32,oled_state[state]);
         ssd1306_update();  
-        ssd1306_clear_row(40);
-        ssd1306_draw_string(0,40,oled_command[command]);
+        ssd1306_clear_row(48);
+        ssd1306_draw_string(0,48,oled_command[command]);
         ssd1306_update();  
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -160,7 +160,12 @@ void app_main(void)
     
     // ---- 1. OLED 初始化 ----
     ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);
-    ssd1306_draw_string(0, 0, "Booting...");
+    ssd1306_draw_string(0, 0, "Chat Assistant");
+    ssd1306_update();
+
+    ssd1306_draw_string(0,24,"chat   state:");
+    ssd1306_update();
+    ssd1306_draw_string(0,40,"device state:");
     ssd1306_update();
 
     // ---- 2. 音频初始化 ----

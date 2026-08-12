@@ -155,7 +155,7 @@ async def voice_http(request: Request):
             command = "led_off"
 
     if "电机" in user:
-        if "开" in user or "启" in user:
+        if "开" in user or "转" in user:
             command = "motor_on"
         elif "停" in user or "关" in user:
             command = "motor_off"
