@@ -26,7 +26,7 @@
 #define MAX_SAMPLES    (SAMPLE_RATE * RECORD_SEC)      // 最大录音缓冲大小
 #define RECV_MAX       (SAMPLE_RATE * 20)              // 接收缓冲最大 20 秒
 
-static int16_t *rec_buf  = NULL;   // 录音缓冲（malloc 到 PSRAM）
+static int16_t *rec_buf=NULL;   // 录音缓冲（malloc 到 PSRAM）
 static int16_t *play_buf = NULL;   // 播放缓冲
 static char command[16];
 
@@ -101,17 +101,21 @@ void Task_Handle_Play(void *parameter){
                 xTaskNotifyIndexed(oled_task,0,Failed,eSetValueWithOverwrite);
                 continue;
             }
+
+            //播放回复
+            amp_enable(true);
+            xTaskNotifyIndexed(oled_task,0,Play,eSetValueWithOverwrite);
+            //播放容量改为最大，确保播放完整（ai回复大小一般会大于录音大小）
+            spk_write(play_buf, play_len);
+            vTaskDelay(pdMS_TO_TICKS(300));
+            amp_enable(false);
+            vTaskDelay(pdMS_TO_TICKS(100));
+
             strncpy(command,voice_last_command(),sizeof(command)-1); 
             command[sizeof(command)-1]='\0';
             xQueueSend(command_queue, command , portMAX_DELAY);
         }
-        amp_enable(true);
-        xTaskNotifyIndexed(oled_task,0,Play,eSetValueWithOverwrite);
-        //播放容量改为最大，确保播放完整（ai回复大小一般会大于录音大小）
-        spk_write(play_buf, play_len);
-        vTaskDelay(pdMS_TO_TICKS(300));
-        amp_enable(false);
-        vTaskDelay(pdMS_TO_TICKS(100));
+        
     }
 }
 

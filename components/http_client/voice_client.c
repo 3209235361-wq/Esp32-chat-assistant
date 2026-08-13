@@ -75,6 +75,7 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         }
         else if(strcmp(evt->header_key,"x-command")==0){
             strncpy(g_command, evt->header_value, sizeof(g_command) - 1);
+            g_command[sizeof(g_command)-1]='\0';
             printf("[HTTP] 指令: %s\n", g_command);
         }
         break;
