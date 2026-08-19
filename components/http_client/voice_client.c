@@ -29,6 +29,7 @@ const char *voice_last_user_text(void) { return g_user_text; }
 const char *voice_last_ai_text(void)   { return g_ai_text;   }
 const char *voice_last_command(void)   { return g_command;   }
 
+
 // ================================================================
 //  url_decode() — 把 %XX 还原成原始字节（中文才能正常打印）
 //  服务器端用 quote() 对中文做了 URL 编码，解码后是 UTF-8 字节
@@ -69,7 +70,8 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         if (strcmp(evt->header_key, "x-user-text") == 0) {
             url_decode(g_user_text, sizeof(g_user_text), evt->header_value);
             printf("[HTTP] 用户: %s\n", g_user_text);
-        } else if (strcmp(evt->header_key, "x-ai-text") == 0) {
+        } 
+        else if (strcmp(evt->header_key, "x-ai-text") == 0) {
             url_decode(g_ai_text, sizeof(g_ai_text), evt->header_value);
             printf("[HTTP] AI: %s\n", g_ai_text);
         }

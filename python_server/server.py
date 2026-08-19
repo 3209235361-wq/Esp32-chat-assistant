@@ -19,6 +19,38 @@ app = FastAPI()
 
 
 # ============================================================
+# Handle command for ESP32
+# ============================================================
+
+def handle_command(user: str , headers: dict[str,str]) -> None:
+    command = "none"
+    if "灯" in user:
+        if "高档" in user:
+            command = "led_high"
+        elif "中档" in user:
+            command = "led_middle"    
+        elif "开" in user or "亮" in user:
+            command = "led_on"
+        elif "关" in user or "灭" in user:
+            command = "led_off"
+        
+    
+    if "电机" in user:
+        if "高档" in user:
+            command = "motor_high"
+        elif "中档" in user:
+            command = "motor_middle"
+        elif "开" in user or "转" in user:
+            command = "motor_on"
+        elif "停" in user or "关" in user:
+            command = "motor_off"
+        
+    
+    if command != "none":
+        headers["X-Command"] = command
+
+
+# ============================================================
 #  PCM bytes → WAV bytes（给 ASR 用，ASR 需要 WAV 头）
 # ============================================================
 def pcm_to_wav(pcm: bytes, sample_rate=16000, channels=1, bit_depth=2) -> bytes:
@@ -147,25 +179,11 @@ async def voice_http(request: Request):
     wav_bytes  = pcm_to_wav(pcm_body, sample_rate, channels, bit_depth)
     pcm, user, ai = await voice_pipeline(wav_bytes)
 
-    command = "none"
-    if "灯" in user:
-        if "开" in user or "亮" in user:
-            command = "led_on"
-        elif "关" in user or "灭" in user:
-            command = "led_off"
-
-    if "电机" in user:
-        if "开" in user or "转" in user:
-            command = "motor_on"
-        elif "停" in user or "关" in user:
-            command = "motor_off"
-
     headers = {
         "X-User-Text":  quote(user, safe=""),
         "X-AI-Text":    quote(ai, safe=""),
     }
-    if command != "none":
-        headers["X-Command"] = command
+    handle_command(user, headers)
 
     if not pcm:
         return Response(content=b"", status_code=204, media_type="application/octet-stream")

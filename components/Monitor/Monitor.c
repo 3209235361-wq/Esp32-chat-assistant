@@ -12,7 +12,7 @@ void Monitor_Init(void){
         .clk_cfg = LEDC_AUTO_CLK,
         .duty_resolution = LEDC_TIMER_8_BIT,
         .timer_num = LEDC_TIMER_0,
-        .freq_hz = PWM_FREQ,
+        .freq_hz = MOTOR_PWM_FREQ,
         .speed_mode = LEDC_LOW_SPEED_MODE,
     };
     ledc_timer_config(&timer_config);

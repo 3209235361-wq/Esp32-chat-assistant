@@ -28,6 +28,7 @@
 
 static int16_t *rec_buf=NULL;   // 录音缓冲（malloc 到 PSRAM）
 static int16_t *play_buf = NULL;   // 播放缓冲
+
 static char command[16];
 
 QueueHandle_t rec_queue = NULL;
@@ -42,7 +43,8 @@ typedef enum cmd{CMD_START_REC, CMD_STOP_REC} cmd_t;
 
 char *oled_state[6]={"Pressing key...","Recording...",
     "Sending to AI...","Playing reply...","Sending failed","Empty queue"};
-char *oled_command[4]={"led_on","led_off","motor_on","motor_off"};
+char *oled_command[8]={"led_on","led_off","led_high","led_middle",
+    "motor_on","motor_off","motor_high","motor_middle"};
 
 // static int speed=0;
 
@@ -55,7 +57,7 @@ void Task_Record(void *parameter){
         //当cmd == CMD_START_REC 就发通知
         xTaskNotifyIndexed(oled_task,0,Record,eSetValueWithOverwrite);
         rec_len=0;
-        xSemaphoreTake(for_record , portMAX_DELAY);        
+        xSemaphoreTake(for_record , portMAX_DELAY);     
         while(rec_len<MAX_SAMPLES){
             rec_buf[rec_len++]=mic_read();
             if(xQueueReceive(rec_queue, &cmd, 0)==pdTRUE&&cmd==CMD_STOP_REC){
@@ -111,36 +113,52 @@ void Task_Handle_Play(void *parameter){
             amp_enable(false);
             vTaskDelay(pdMS_TO_TICKS(100));
 
-            strncpy(command,voice_last_command(),sizeof(command)-1); 
-            command[sizeof(command)-1]='\0';
+            strncpy(command,voice_last_command(),sizeof(command)-1);
+            command[sizeof(command)-1]='\0';            
             xQueueSend(command_queue, command , portMAX_DELAY);
         }
         
     }
 }
 
+
 void Task_Command(void *parameter){
     static char temp_command[16];
     while(1){
         if(xQueueReceive(command_queue, temp_command, portMAX_DELAY)==pdTRUE){
             if(strcmp(temp_command,"led_on")==0){
-                Set_Level_LED(PIN, 0);
+                Set_Level_LED(LED_DEFAULT_BRIGHTNESS);
                 xTaskNotifyIndexed(oled_task,1,LED_ON,eSetValueWithOverwrite);
             }
             else if(strcmp(temp_command,"led_off")==0){
-                Set_Level_LED(PIN, 1);
+                Set_Level_LED(LED_CLOSE);
                 xTaskNotifyIndexed(oled_task,1,LED_OFF,eSetValueWithOverwrite);
             }
             else if(strcmp(temp_command,"motor_on")==0){
-                motor_set_speed(FIXED_SPEED);
+                motor_set_speed(DEFAULT_SPEED);
                 xTaskNotifyIndexed(oled_task,1,MOTOR_ON,eSetValueWithOverwrite);
             }
             else if(strcmp(temp_command,"motor_off")==0){
-                motor_set_speed(0);
+                motor_set_speed(MOTOR_CLOSE);
                 xTaskNotifyIndexed(oled_task,1,MOTOR_OFF,eSetValueWithOverwrite);
             }
+            else if(strcmp(temp_command,"led_high")==0){
+                Set_Level_LED(LED_MAX_BRIGHTNESS);
+                xTaskNotifyIndexed(oled_task,1,LED_HIGH,eSetValueWithOverwrite);
+            }
+            else if(strcmp(temp_command,"led_middle")==0){
+                Set_Level_LED(LED_MIDDLE_BRIGHTNESS);
+                xTaskNotifyIndexed(oled_task,1,LED_MIDDLE,eSetValueWithOverwrite);
+            }
+            else if(strcmp(temp_command,"motor_high")==0){
+                motor_set_speed(MAX_SPEED);
+                xTaskNotifyIndexed(oled_task,1,MOTOR_HIGH,eSetValueWithOverwrite);
+            }
+            else if(strcmp(temp_command,"motor_middle")==0){
+                motor_set_speed(MIDDLE_SPEED);
+                xTaskNotifyIndexed(oled_task,1,MOTOR_MIDDLE,eSetValueWithOverwrite);
+            }
         }
-
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
