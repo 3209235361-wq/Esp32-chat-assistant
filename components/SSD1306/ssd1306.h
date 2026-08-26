@@ -6,7 +6,7 @@
 #define SSD1306_WIDTH  128
 #define SSD1306_HEIGHT 64
 typedef enum str_state{
-    Press = 0,
+    Wait = 0,
     Record = 1,
     Send = 2,
     Play = 3,

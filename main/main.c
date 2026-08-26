@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "audio.h"
 #include "wifi.h"
 #include "ssd1306.h"
@@ -8,6 +9,7 @@
 #include "led.h"
 #include "Monitor.h"
 #include "voice_client.h"
+#include "wakeup.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
@@ -25,13 +27,13 @@
 #define RECORD_SEC     30                // 假设最大录音秒数
 #define MAX_SAMPLES    (SAMPLE_RATE * RECORD_SEC)      // 最大录音缓冲大小
 #define RECV_MAX       (SAMPLE_RATE * 20)              // 接收缓冲最大 20 秒
+#define SILENCE_END_FRAMES 16
 
 static int16_t *rec_buf=NULL;   // 录音缓冲（malloc 到 PSRAM）
 static int16_t *play_buf = NULL;   // 播放缓冲
 
 static char command[16];
 
-QueueHandle_t rec_queue = NULL;
 QueueHandle_t audio_queue = NULL;
 QueueHandle_t command_queue = NULL;
 TaskHandle_t oled_task = NULL;
@@ -39,65 +41,99 @@ SemaphoreHandle_t for_record = NULL;
 
 //录音标志
 typedef enum cmd{CMD_START_REC, CMD_STOP_REC} cmd_t;
-//OLED Display
 
-char *oled_state[6]={"Pressing key...","Recording...",
+//OLED Display
+char *oled_state[6]={"Waiting wake word...","Recording...",
     "Sending to AI...","Playing reply...","Sending failed","Empty queue"};
 char *oled_command[8]={"led_on","led_off","led_high","led_middle",
     "motor_on","motor_off","motor_high","motor_middle"};
 
-// static int speed=0;
-
-void Task_Record(void *parameter){
-    cmd_t cmd;
-    size_t rec_len=0;
-    while(1){
-        xQueueReceive(rec_queue, &cmd, portMAX_DELAY);
-        if(cmd!=CMD_START_REC){continue;}
-        //当cmd == CMD_START_REC 就发通知
-        xTaskNotifyIndexed(oled_task,0,Record,eSetValueWithOverwrite);
-        rec_len=0;
-        xSemaphoreTake(for_record , portMAX_DELAY);     
-        while(rec_len<MAX_SAMPLES){
-            rec_buf[rec_len++]=mic_read();
-            if(xQueueReceive(rec_queue, &cmd, 0)==pdTRUE&&cmd==CMD_STOP_REC){
-                break;
-            }
-        }
-        xQueueSend(audio_queue, &rec_len, portMAX_DELAY);
-        xSemaphoreGive(for_record);
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
+//for wakeup
+extern i2s_chan_handle_t rx_handle;
+extern esp_afe_sr_data_t *afe_data;
+extern const esp_afe_sr_iface_t *afe_handle;
+extern const char *TAG0;
+static int afe_mic_read(int16_t *rec_buf,int samples){
+    size_t rec_len=0;   
+    esp_err_t err=i2s_channel_read(rx_handle,rec_buf,samples*2,&rec_len,portMAX_DELAY);
+    return (err==ESP_OK)?(int)rec_len:-1;//返回字节数
 }
-void Task_Key(void *parameter){
-    key_state_t status=KEY_NOT_PRESSED;
-    bool last_status=false;
-    cmd_t cmd;
+
+void Task_AFE_Mic(void *parameter){
+    //wakeword=你好小智
+    int feed_chunk=afe_handle->get_feed_chunksize(afe_data);
+    int16_t *in_buf=heap_caps_malloc(feed_chunk*2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    assert(in_buf);
+
+    static int silence_frames=0;
+    bool woken=false;
+    int offset=0;
     while(1){
-        status=KEY_De_trembing(KEY_PIN);
-        if(status==KEY_PRESSED&&!last_status){
-            cmd=CMD_START_REC;
-            xQueueSend(rec_queue, &cmd, portMAX_DELAY);
-            xTaskNotifyIndexed(oled_task,0,Press,eSetValueWithOverwrite);
+        vTaskDelay(pdMS_TO_TICKS(10));
+
+        //读取麦克风数据,feed给afe_data
+        if(afe_mic_read(in_buf,feed_chunk)!=feed_chunk*2){
+            continue;
         }
-        else if(status==KEY_NOT_PRESSED&&last_status){
-            cmd=CMD_STOP_REC;
-            xQueueSend(rec_queue, &cmd, portMAX_DELAY);
+        afe_handle->feed(afe_data,in_buf);
+
+        //获取数据
+        afe_fetch_result_t *res=afe_handle->fetch(afe_data);
+        
+        //唤醒检测
+        if(!woken&&res->wakeup_state==WAKENET_DETECTED){
+            woken=true;
+            silence_frames=0;
+            offset=0;
+            ESP_LOGI(TAG0,"wake word! index=%d",res->wake_word_index);
         }
-        //边沿检测：以防重复发CMD_START_REC
-        last_status=(status==KEY_PRESSED);
-        vTaskDelay(pdMS_TO_TICKS(20));
+
+        //录音处理
+        if(woken){
+            xTaskNotifyIndexed(oled_task,0,Record,eSetValueWithOverwrite);
+            //判断是否超过最大录音缓冲大小
+            if(offset+res->data_size>=MAX_SAMPLES*2){
+                ESP_LOGI(TAG0,"speech end");
+                int samples=offset/2;
+                xQueueSend(audio_queue, &samples, portMAX_DELAY);
+                offset=0;
+                silence_frames=0;
+                woken=false;                
+                vTaskDelay(pdMS_TO_TICKS(100));
+                continue;
+            }
+
+            //将数据复制到rec_buf
+            xSemaphoreTake(for_record,portMAX_DELAY);
+            memcpy((uint8_t *)rec_buf+offset,res->data,res->data_size);
+            xSemaphoreGive(for_record);
+            offset+=res->data_size;
+
+            //静音检测
+            if(res->vad_state==VAD_SILENCE){
+                if(++silence_frames>=SILENCE_END_FRAMES){
+                    ESP_LOGI(TAG0,"speech end");
+                    woken=false;
+                    int samples=offset/2;
+                    xQueueSend(audio_queue, &samples, portMAX_DELAY);
+                    offset=0;
+                    silence_frames=0;
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                } 
+            }
+            else{silence_frames=0;}
+        }
     }
 }
 void Task_Handle_Play(void *parameter){
-    size_t rec_len=0;
+    size_t samples=0;
     size_t play_len=0;
     while(1){
-        if(xQueueReceive(audio_queue, &rec_len, portMAX_DELAY)==pdTRUE){
+        if(xQueueReceive(audio_queue, &samples, portMAX_DELAY)==pdTRUE){
             xTaskNotifyIndexed(oled_task,0,Send,eSetValueWithOverwrite);
             play_len= RECV_MAX;
             xSemaphoreTake(for_record , portMAX_DELAY);
-            bool ok=voice_send_receive(rec_buf, rec_len, play_buf, &play_len);
+            bool ok=voice_send_receive(rec_buf, samples, play_buf, &play_len);
             xSemaphoreGive(for_record);
             if(ok==false||play_len==0){
                 xTaskNotifyIndexed(oled_task,0,Failed,eSetValueWithOverwrite);
@@ -184,6 +220,7 @@ void app_main(void)
     KEY_Init();
     LED_Init();
     Monitor_Init();
+    WakeEngine_Init();
     
     // ---- 1. OLED 初始化 ----
     ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);
@@ -217,13 +254,11 @@ void app_main(void)
     }
     printf("[Init] rec=%d samples  play=%d samples\n", MAX_SAMPLES, RECV_MAX);
 
-    rec_queue=xQueueCreate(1, sizeof(cmd_t));
     audio_queue=xQueueCreate(1, sizeof(size_t));
     command_queue=xQueueCreate(1, sizeof(command));
     for_record=xSemaphoreCreateMutex();
 
-    xTaskCreate(Task_Record, "Rec", 2048, NULL, 4, NULL);
-    xTaskCreate(Task_Key, "Key", 2048, NULL, 3, NULL);
+    xTaskCreate(Task_AFE_Mic, "Mic", 8192, NULL, 4, NULL);
     xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
     xTaskCreate(Task_OLED_Display, "OLED", 2048, NULL, 1, &oled_task);
     xTaskCreate(Task_Command, "Command", 2048, NULL, 1, NULL);

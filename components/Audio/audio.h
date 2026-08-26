@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "driver/i2s_std.h"
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 //----shared i2s bus----
 #define I2S_BCLK 41  // 麦克风sck和喇叭bclk

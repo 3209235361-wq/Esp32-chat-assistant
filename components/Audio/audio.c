@@ -1,11 +1,8 @@
 #include "audio.h"
-#include "driver/i2s_std.h"
-#include "driver/gpio.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+
 
 // ---- 句柄：操作 I2S 通道的"编号" ----
-static i2s_chan_handle_t rx_handle;  // RX 通道，麦克风→ESP32
+i2s_chan_handle_t rx_handle;  // RX 通道，麦克风→ESP32
 static i2s_chan_handle_t tx_handle;  // TX 通道，ESP32→功放
 
 
