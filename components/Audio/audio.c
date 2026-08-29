@@ -45,7 +45,7 @@ void Audio_Init(void)
             .slot_bit_width=I2S_SLOT_BIT_WIDTH_32BIT,//32位时钟周期
             .slot_mask=I2S_STD_SLOT_LEFT,// 只使用左声道
             .slot_mode=I2S_SLOT_MODE_STEREO,// 双声模式
-            .ws_pol=false,// ws高电平左声道，ws低电平右声道
+            .ws_pol=false,// 标准极性：ws高-右声道，ws低-左声道
             .ws_width=16,// ws宽度为16个BCLK
         }
     };

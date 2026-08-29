@@ -148,6 +148,7 @@ void Task_Handle_Play(void *parameter){
             vTaskDelay(pdMS_TO_TICKS(300));
             amp_enable(false);
             vTaskDelay(pdMS_TO_TICKS(100));
+            xTaskNotifyIndexed(oled_task,0,Wait,eSetValueWithOverwrite);
 
             strncpy(command,voice_last_command(),sizeof(command)-1);
             command[sizeof(command)-1]='\0';            
