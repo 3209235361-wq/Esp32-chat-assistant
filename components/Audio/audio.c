@@ -5,6 +5,12 @@
 i2s_chan_handle_t rx_handle;  // RX 通道，麦克风→ESP32
 static i2s_chan_handle_t tx_handle;  // TX 通道，ESP32→功放
 
+int volume_state[4]={VOLUME_CLOSE_T,VOLUME_MIDDLE_T,VOLUME_DEFAULT_T,VOLUME_MAX_T};
+char *volume_str[4] = {"Close", "Middle", "Default", "Max"};
+
+//test
+int voice_test[4]={0,1,2,3};
+char *voice_str_test[4]={ "0","1","2","3" };
 
 void Audio_Init(void)
 {

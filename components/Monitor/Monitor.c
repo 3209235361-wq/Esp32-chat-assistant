@@ -2,6 +2,9 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
+int motor_state[4]={MOTOR_CLOSE,MIDDLE_SPEED,DEFAULT_SPEED,MAX_SPEED};
+char *motor_str_state[4]={ "Close","Middle","Default","Max" };
+
 void Monitor_Init(void){
     gpio_reset_pin(MOTOR_AIN1);
     gpio_set_direction(MOTOR_AIN1, GPIO_MODE_OUTPUT);

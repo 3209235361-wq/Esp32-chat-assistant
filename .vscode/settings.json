@@ -49,5 +49,6 @@
       ]
     }
   },
-  "terminal.integrated.defaultProfile.windows": "ESP-IDF Command Prompt"
+  "terminal.integrated.defaultProfile.windows": "ESP-IDF Command Prompt",
+  "idf.port": "COM3"
 }

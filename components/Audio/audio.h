@@ -24,6 +24,25 @@
 //----sample rate----
 #define SAMPLE_RATE 16000
 
+#define VOLUME_CLOSE 0
+#define VOLUME_MIDDLE 1
+#define VOLUME_DEFAULT 2
+#define VOLUME_MAX 3
+
+enum volume_state{ 
+    VOLUME_CLOSE_T,
+    VOLUME_MIDDLE_T,
+    VOLUME_DEFAULT_T,
+    VOLUME_MAX_T
+};
+
+extern char *volume_str[4];
+extern int volume_state[4];
+
+//for test
+extern int voice_test[4];
+extern char *voice_str_test[4];
+
 void Audio_Init(void);
 int16_t mic_read(void);
 void spk_write(const int16_t *sample_data,size_t count);

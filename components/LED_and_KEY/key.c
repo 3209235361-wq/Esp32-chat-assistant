@@ -1,16 +1,16 @@
 #include "key.h"
 
 void KEY_Init(void){
-    gpio_reset_pin(KEY_PIN);
-    gpio_set_direction(KEY_PIN, GPIO_MODE_INPUT);
-    gpio_set_pull_mode(KEY_PIN, GPIO_PULLUP_ONLY);
-}
-key_state_t KEY_De_trembing(gpio_num_t pin){
-    if(gpio_get_level(pin)==0){
-        vTaskDelay(pdMS_TO_TICKS(20));
-        if(gpio_get_level(pin)==0){
-            return KEY_PRESSED;
-        }
-    }
-    return KEY_NOT_PRESSED;
+    gpio_reset_pin(KEY_PIN_UP);
+    gpio_set_direction(KEY_PIN_UP, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(KEY_PIN_UP, GPIO_PULLUP_ONLY);
+    gpio_reset_pin(KEY_PIN_DOWN);
+    gpio_set_direction(KEY_PIN_DOWN, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(KEY_PIN_DOWN, GPIO_PULLUP_ONLY);
+    gpio_reset_pin(KEY_PIN_VERITY);
+    gpio_set_direction(KEY_PIN_VERITY, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(KEY_PIN_VERITY, GPIO_PULLUP_ONLY);
+    gpio_reset_pin(KEY_PIN_EXIT);
+    gpio_set_direction(KEY_PIN_EXIT, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(KEY_PIN_EXIT, GPIO_PULLUP_ONLY);
 }

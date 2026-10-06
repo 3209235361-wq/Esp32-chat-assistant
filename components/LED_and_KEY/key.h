@@ -6,16 +6,19 @@
 #include "freertos/task.h"
 #include <stdbool.h>
 
-#define KEY_PIN 15
+#define KEY_PIN_UP 14
+#define KEY_PIN_DOWN 13
+#define KEY_PIN_VERITY 12
+#define KEY_PIN_EXIT 11
+#define KEY_DEBOUNCE_MS 20
 
-typedef enum {
-    KEY_NOT_PRESSED,
-    KEY_PRESSED,
-    KEY_RELEASED
-} key_state_t;
+enum key_status{
+    UP=0,
+    DOWN=1,
+    VERITY=2,
+    EXIT=3
+};
 
 void KEY_Init(void);
-key_state_t KEY_De_trembing(gpio_num_t pin);
-
 
 #endif

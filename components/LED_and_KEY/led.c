@@ -1,5 +1,7 @@
 #include "led.h"
 
+int led_state[4]={LED_CLOSE,LED_MIDDLE_BRIGHTNESS,LED_DEFAULT_BRIGHTNESS,LED_MAX_BRIGHTNESS};
+char *led_str_state[4]={ "Close","Middle","Default","Max" };
 void LED_Init(void){
     ledc_timer_config_t timer_config={
         .clk_cfg = LEDC_AUTO_CLK,

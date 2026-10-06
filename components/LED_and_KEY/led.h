@@ -15,6 +15,15 @@
 #define LED_MIDDLE_BRIGHTNESS 128
 #define LED_CLOSE 0
 
+enum LED_STATE{
+    LED_CLOSE_T,
+    LED_MIDDLE_T,
+    LED_DEFAULT_T,
+    LED_MAX_T,
+};
+
+extern int led_state[4];
+extern char *led_str_state[4];
 
 void LED_Init(void);
 void Set_Level_LED(uint32_t brightness);
