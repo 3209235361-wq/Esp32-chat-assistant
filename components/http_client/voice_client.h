@@ -3,6 +3,20 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+#define STD_CHINESE_FM "Chinese FM"
+#define STD_CHINESE_M "Chinese M"
+#define CONTONESE "Chinese HK"
+#define ENGLISH_M "English"
+
+#define MAX_NAME_LEN 32
+
+enum VoiceModel {
+    STD_CHINESE_FM_MODEL,
+    STD_CHINESE_M_MODEL,
+    CONTONESE_MODEL,
+    ENGLISH_M_MODEL,    
+};
+
 // ---- 发送录音，接收 AI 回复 ----
 // pcm_in:   录制的 PCM 数据 (int16_t 数组)
 // len_in:   采样点个数
@@ -19,3 +33,8 @@ void voice_set_server(const char *host, int port);
 const char *voice_last_user_text(void);
 const char *voice_last_ai_text(void);
 const char *voice_last_command(void);
+
+extern int voice_state[4];
+extern char *voice_str_state[4];
+
+void vocal_line_set(int model);

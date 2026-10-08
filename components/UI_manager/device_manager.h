@@ -3,6 +3,8 @@
 
 #include "Monitor.h"
 #include "led.h"
+#include "audio.h"
+#include "voice_client.h"
 
 
 #define container_of(ptr,type,member)\

@@ -43,21 +43,21 @@ void led_adjust(struct Node *node,int d){
     Set_Level_LED(node->state_index[state]);
 }
 
-void voice_adjust(struct Node *node,int d){
+void volume_adjust(struct Node *node,int d){
     assert(node);
     int state=node->state;
     state+=d;
     if(state < VOLUME_CLOSE_T) state=VOLUME_MAX_T;
     if(state > VOLUME_MAX_T) state=VOLUME_CLOSE_T;
     node->state=state;
-    //空实现
+    spk_set_volume(node->state_index[state]);
 }
-void volume_adjust(struct Node *node,int d){
+void voice_adjust(struct Node *node,int d){
     assert(node);
     int state=node->state;
     state+=d;
-    if(state < 0) state=3;
-    if(state > 3) state=0;
+    if(state < STD_CHINESE_FM_MODEL) state=ENGLISH_M_MODEL;
+    if(state > ENGLISH_M_MODEL) state=STD_CHINESE_FM_MODEL;
     node->state=state;
-    //空实现
+    vocal_line_set(state);
 }

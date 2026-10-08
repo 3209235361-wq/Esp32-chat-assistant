@@ -41,13 +41,16 @@ SemaphoreHandle_t for_record = NULL;
 static Header_t header;
 static Node_t node1={.name="motor",.label="1.Motor state",.state=DEFAULT_SPEED_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
 static Node_t node2={.name="led",.label="2.LED state",.state=LED_DEFAULT_T,.state_index=led_state,.state_table=led_str_state,.list={NULL,NULL},.func=led_adjust};
-static Node_t node3={.name="volume",.label="3.Adjust volume",.state=VOLUME_DEFAULT_T,.state_index=volume_state,.state_table=volume_str,.list={NULL,NULL},.func=volume_adjust};
-static Node_t node4={.name="voice",.label="4.Switch voice",.state=0,.state_index=voice_test,.state_table=voice_str_test,.list={NULL,NULL},.func=voice_adjust};
+static Node_t node3={.name="volume",.label="3.Adjust volume",.state=VOLUME_DEFAULT_T,.state_index=volume_state,.state_table=volume_str_state,.list={NULL,NULL},.func=volume_adjust};
+static Node_t node4={.name="voice",.label="4.Switch voice",.state=STD_CHINESE_FM_MODEL,.state_index=voice_state,.state_table=voice_str_state,.list={NULL,NULL},.func=voice_adjust};
 enum oled_pos{
     INSIDE,
     OUTSIDE
 };
 #define REFRESH_VALUE 0xFF
+void WiFi_SetStateCallBack(void (*cb)(void));
+void wifi_change_to(void);
+
 
 //for wakeup
 extern i2s_chan_handle_t rx_handle;
@@ -248,7 +251,12 @@ void Task_OLED_Display(void *parameter){
                     break;
                 case VERITY:
                     oled_pos=INSIDE;
-                    break;                               
+                    break;   
+                default:
+                    show_outside(&header,original_list);
+                    ssd1306_update();
+                    break;
+                
                 }
             }
         else if(oled_pos == INSIDE){
@@ -279,6 +287,12 @@ void Task_OLED_Display(void *parameter){
         }
         ssd1306_update();
         vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+void Task_WiFi(void *parameter){
+    while(1){
+
     }
 }
 
@@ -316,6 +330,8 @@ void app_main(void)
     Audio_Init();
     amp_enable(false);  // 先静音
 
+
+    WiFi_SetStateCallBack(wifi_change_to);
     // ---- 4. 连接 WiFi ----
     // 注意：WiFi_Connect 内部是 portMAX_DELAY 阻塞等 IP，连不上会一直卡在这句。
     printf("[Init] WiFi connecting...\n");
@@ -344,4 +360,12 @@ void app_main(void)
     while (1){   
         vTaskDelay(pdMS_TO_TICKS(500));
     }
+}
+
+void WiFi_SetStateCallBack(void (*cb)(void)){
+    wifi_state_cb=cb;
+}
+void wifi_change_to(void){
+    int r=REFRESH_VALUE;
+    xQueueSend(key_queue,&r,0);//不阻塞
 }

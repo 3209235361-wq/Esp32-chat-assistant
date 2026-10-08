@@ -165,6 +165,10 @@ async def voice_http(request: Request):
     sample_rate = int(request.query_params.get("sr", 16000))
     bit_depth   = int(request.query_params.get("bits", 16)) // 8
     channels    = int(request.query_params.get("ch", 1))
+    voice       = int(request.query_params.get("voice", 0))
+
+    # 语音模型范围 0-3
+    voice=max(0,min(3,voice))
 
     if len(pcm_body) < sample_rate * bit_depth:
         return Response(content=b"", status_code=400, media_type="application/octet-stream")
@@ -177,7 +181,7 @@ async def voice_http(request: Request):
 
     # PCM → WAV → pipeline
     wav_bytes  = pcm_to_wav(pcm_body, sample_rate, channels, bit_depth)
-    pcm, user, ai = await voice_pipeline(wav_bytes)
+    pcm, user, ai = await voice_pipeline(wav_bytes,voice)
 
     headers = {
         "X-User-Text":  quote(user, safe=""),

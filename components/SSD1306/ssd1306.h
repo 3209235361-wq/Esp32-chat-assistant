@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "device_manager.h"
+#include "wifi.h"
 
 #define SSD1306_WIDTH  128
 #define SSD1306_HEIGHT 64

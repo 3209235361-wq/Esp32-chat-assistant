@@ -8,6 +8,10 @@ static int  g_port = 8006;
 static char g_user_text[256] = "";
 static char g_ai_text[256]   = "";
 
+int voice_state[4]={STD_CHINESE_FM_MODEL,STD_CHINESE_M_MODEL,CONTONESE_MODEL,ENGLISH_M_MODEL};
+char *voice_str_state[4]={ STD_CHINESE_FM,STD_CHINESE_M,CONTONESE,ENGLISH_M };
+static uint8_t current_voice = STD_CHINESE_FM_MODEL;
+
 //接受指令
 static char g_command[16] = "none";
 
@@ -99,9 +103,9 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
                               int16_t *pcm_out, size_t *len_out)
 {
-    char url[128];
-    snprintf(url, sizeof(url), "http://%s:%d/voice?sr=16000&bits=16&ch=1",
-             g_host, g_port);
+    char url[128+1];
+    snprintf(url, sizeof(url), "http://%s:%d/voice?sr=16000&bits=16&ch=1&voice=%d",
+             g_host, g_port, current_voice);
 
     // 设置全局接收缓冲，事件回调会往里写数据
     g_recv_buf   = (uint8_t *)pcm_out;
@@ -144,4 +148,8 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     printf("[HTTP] 收到 %u bytes PCM (%d samples)\n",
            (unsigned)g_recv_total, (int)(*len_out));
     return (*len_out > 0);
+}
+
+void vocal_line_set(int model){
+    current_voice=model;
 }

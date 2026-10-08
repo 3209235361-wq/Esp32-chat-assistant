@@ -170,6 +170,8 @@ void show_outside(Header_t *header,mList_t *list){
         ssd1306_draw_pixel(0,k,SSD1306_WHITE);
         ssd1306_draw_pixel(127,k,SSD1306_WHITE);
     }
+    ssd1306_draw_string(8,1*8,"WiFi:");
+    ssd1306_draw_string(36,1*8,wifi_str_state[WiFi_isConnect()]);
     int original_pos=ORIGINAL_POS;
     for(mList_t *pos=header->head.next;pos!=&header->head;pos=pos->next){
         Node_t *node = container_of(pos,Node_t,list);

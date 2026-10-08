@@ -39,7 +39,12 @@ SPECIAL_REPLIES = {
     "中档电机" : "好的，电机已设置为中档",
     "高档电机" : "好的，电机已设置为高档",
 }
-
+VOICE_LIST={
+    0: "zh-CN-XiaoyiNeural",
+    1: "zh-CN-YunyangNeural",
+    2: "zh-HK-HiuMaanNeural",
+    3: "en-US-AvaMultilingualNeural",
+}
 def get_special_reply(user_text: str) -> str | None:
     # 检查是否有特殊回复
     for key, reply in SPECIAL_REPLIES.items():
@@ -177,8 +182,7 @@ def mp3_to_pcm(mp3_bytes: bytes, sample_rate: int = 16000) -> bytes:
 # ============================================================
 #  串联: WAV → 文字 → LLM → TTS → PCM
 # ============================================================
-async def voice_pipeline(wav_bytes: bytes, history: list[dict] = None
-                         ) -> tuple[bytes, str, str]:
+async def voice_pipeline(wav_bytes: bytes, voice:int = 0,history: list[dict] = None) -> tuple[bytes, str, str]:
     """一次调用走完四步，返回 (pcm_bytes, user_text, ai_text)"""
     print("\n" + "-" * 40)
     user_text = await speech_to_text(wav_bytes)
@@ -193,7 +197,7 @@ async def voice_pipeline(wav_bytes: bytes, history: list[dict] = None
     
     if not ai_text:
         return b"", user_text, ""
-    mp3       = await text_to_speech(ai_text)
+    mp3       = await text_to_speech(ai_text,voice=VOICE_LIST[voice])
     pcm       = mp3_to_pcm(mp3, 16000)
     print(f"[Done] {len(wav_bytes)}B → '{user_text}' → '{ai_text}' → {len(pcm)}B PCM")
     return pcm, user_text, ai_text

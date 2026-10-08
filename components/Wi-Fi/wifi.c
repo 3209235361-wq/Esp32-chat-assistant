@@ -6,6 +6,9 @@
 #include "freertos/event_groups.h"
 static EventGroupHandle_t wifi_events;
 static const int WIFI_CONNECTED = BIT0;
+char *wifi_str_state[2] = {"NOT_OK","OK"};
+void (*wifi_state_cb)(void) = NULL;
+
 // 事件处理函数
 void event_handler(void *arg, esp_event_base_t base, int32_t id, void *data){
     if(base == WIFI_EVENT && id == WIFI_EVENT_STA_START){
@@ -13,11 +16,17 @@ void event_handler(void *arg, esp_event_base_t base, int32_t id, void *data){
     }
     else if(base == IP_EVENT && id == IP_EVENT_STA_GOT_IP){
         xEventGroupSetBits(wifi_events, WIFI_CONNECTED);
+        if(wifi_state_cb){
+            wifi_state_cb();
+        }
     }
     else if(base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED){
+        xEventGroupClearBits(wifi_events, WIFI_CONNECTED);
+        if(wifi_state_cb){
+            wifi_state_cb();
+        }
         esp_wifi_connect();
     }
-
 }
 
 void WiFi_Connect(const char *ssid, const char *password){
@@ -32,7 +41,7 @@ void WiFi_Connect(const char *ssid, const char *password){
     esp_event_loop_create_default();
     esp_netif_create_default_wifi_sta();
 
-    //step4: 初始化wifi驱动
+    //step4: 初始化wifi驱动0
     wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_wifi_init(&wifi_init_cfg);
 
@@ -54,4 +63,11 @@ void WiFi_Connect(const char *ssid, const char *password){
     xEventGroupWaitBits(wifi_events, WIFI_CONNECTED, false, false, portMAX_DELAY);
 
 
+}
+
+bool WiFi_isConnect(void){
+    if(wifi_events == NULL){
+        return false;
+    }
+    return (xEventGroupGetBits(wifi_events) & WIFI_CONNECTED) != 0;
 }

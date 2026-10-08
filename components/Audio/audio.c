@@ -5,12 +5,11 @@
 i2s_chan_handle_t rx_handle;  // RX 通道，麦克风→ESP32
 static i2s_chan_handle_t tx_handle;  // TX 通道，ESP32→功放
 
-int volume_state[4]={VOLUME_CLOSE_T,VOLUME_MIDDLE_T,VOLUME_DEFAULT_T,VOLUME_MAX_T};
-char *volume_str[4] = {"Close", "Middle", "Default", "Max"};
+int volume_state[4]={VOLUME_CLOSE,VOLUME_MIDDLE,VOLUME_DEFAULT,VOLUME_MAX};
+char *volume_str_state[4] = {"Close", "Middle", "Default", "Max"};
+static uint8_t current_volume = VOLUME_DEFAULT;
 
-//test
-int voice_test[4]={0,1,2,3};
-char *voice_str_test[4]={ "0","1","2","3" };
+
 
 void Audio_Init(void)
 {
@@ -86,8 +85,8 @@ void spk_write(const int16_t *sample_data,size_t count){
     for(size_t i=0;i<count;i+=256){//One round handles 256 datas.
         size_t n=(i+256<=count)?256:(count-i);
         for(int j=0;j<n;j++){
-            stereo[j*2]=sample_data[i+j];
-            stereo[j*2+1]=sample_data[i+j];
+            stereo[j*2]=(sample_data[i+j]*current_volume)/VOLUME_MAX;
+            stereo[j*2+1]=(sample_data[i+j]*current_volume)/VOLUME_MAX;
         }
         i2s_channel_write(tx_handle,stereo,sizeof(int16_t)*n*2,&written_bytes,portMAX_DELAY);
     }
@@ -97,4 +96,8 @@ void spk_write(const int16_t *sample_data,size_t count){
 //控制功放
 void amp_enable(bool on){
     gpio_set_level(AMP_SD, on ? 1 : 0);             // 不需要等稳定，直接拉高/低
+}
+
+void spk_set_volume(uint8_t level){
+    current_volume=level;
 }

@@ -1,6 +1,7 @@
 #ifndef __AUDIO_H__
 #define __AUDIO_H__
 
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -25,9 +26,9 @@
 #define SAMPLE_RATE 16000
 
 #define VOLUME_CLOSE 0
-#define VOLUME_MIDDLE 1
-#define VOLUME_DEFAULT 2
-#define VOLUME_MAX 3
+#define VOLUME_MIDDLE 128
+#define VOLUME_DEFAULT 200
+#define VOLUME_MAX 255
 
 enum volume_state{ 
     VOLUME_CLOSE_T,
@@ -36,16 +37,14 @@ enum volume_state{
     VOLUME_MAX_T
 };
 
-extern char *volume_str[4];
+extern char *volume_str_state[4];
 extern int volume_state[4];
 
-//for test
-extern int voice_test[4];
-extern char *voice_str_test[4];
 
 void Audio_Init(void);
 int16_t mic_read(void);
 void spk_write(const int16_t *sample_data,size_t count);
 void amp_enable(bool on);
+void spk_set_volume(uint8_t level);
 
 #endif
