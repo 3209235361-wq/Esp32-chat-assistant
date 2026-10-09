@@ -5,4 +5,4 @@
 
   **硬件**：ESP32-S3 · INMP441 麦克风 · MAX98357A 功放 · SSD1306 OLED  Motor 
 
-  **技术**：ESP-IDF (C) + FastAPI (Python) · DashScope ASR · DeepSeek LLM · Edge-TTS + UI design(Intrusive two way loop list)
+  **技术**：ESP-IDF (C) + FastAPI (Python) · DashScope ASR · DeepSeek LLM · Edge-TTS + UI Manager(These devices are managed by intrusive two way loop linked list)
