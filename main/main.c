@@ -290,12 +290,6 @@ void Task_OLED_Display(void *parameter){
     }
 }
 
-void Task_WiFi(void *parameter){
-    while(1){
-
-    }
-}
-
 void app_main(void)
 {
     KEY_Init();
