@@ -1,8 +1,7 @@
-基于 ESP32-S3 的 AI 语音对话助手：对着麦克风说话，AI 识别并回答，通过喇叭播放语音回复。
+The chat assistant based on ESP32：talk to microphone，AI will recognize your voice and the loudspeaker will play the reply voice。
 
-  **架构**：ESP32 只负责录音、传输、播放；语音识别（ASR）、大模型对话（LLM）、语音合成（TTS）全部在 PC 端 Python
-  服务完成。
+  **structure**：ESP32 can only recording、sending、playing；ASR、LLM、TTS are finished in PC terminal Python.
+                 
+  **hardware**：ESP32-S3-N16R8 , INMP441:microphone , MAX98357A:loudspeaker , SSD1306:OLED , Motor,led 
 
-  **硬件**：ESP32-S3 · INMP441 麦克风 · MAX98357A 功放 · SSD1306 OLED  Motor 
-
-  **技术**：ESP-IDF (C) + FastAPI (Python) · DashScope ASR · DeepSeek LLM · Edge-TTS + UI Manager(These devices are managed by intrusive two way loop linked list)
+  **technology**：ESP-IDF (C) + FastAPI (Python) · DashScope ASR · DeepSeek LLM · Edge-TTS + UI Manager(These devices are managed by intrusive two way loop linked list)
