@@ -19,7 +19,8 @@ from dashscope.audio.asr import Recognition
 from openai import OpenAI
 import edge_tts
 
-# ============ 配置 ============
+# ============ config ============
+# API keys
 DASHSCOPE_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY",  "")
 DEEPSEEK_URL  = "https://api.deepseek.com"

@@ -5,6 +5,9 @@
 #include "device_manager.h"
 #include "wifi.h"
 
+#define I2C_SCL_PIN    20
+#define I2C_SDA_PIN    21
+
 #define SSD1306_WIDTH  128
 #define SSD1306_HEIGHT 64
 

@@ -13,20 +13,13 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
-// ---- 改这里 ----
+
+// ---- change here/改这里 ----
 #define WIFI_SSID      "宇智波皮的iPhone"
 #define WIFI_PASSWORD  "77777777"
 
-#define SERVER_IP      "172.20.10.3"   // 手机热点：172.20.10.x，连同一热点后查电脑IP
+#define SERVER_IP      "172.20.10.3"   // phone hotspot/手机热点：172.20.10.x，连同一热点后查电脑IP
 #define SERVER_PORT    8006
-
-#define I2C_SCL_PIN    20
-#define I2C_SDA_PIN    21
-
-#define RECORD_SEC     30                // 假设最大录音秒数
-#define MAX_SAMPLES    (SAMPLE_RATE * RECORD_SEC)      // 最大录音缓冲大小
-#define RECV_MAX       (SAMPLE_RATE * 20)              // 接收缓冲最大 20 秒
-#define SILENCE_END_FRAMES 16
 
 static int16_t *rec_buf=NULL;   // 录音缓冲（malloc 到 PSRAM）
 static int16_t *play_buf = NULL;   // 播放缓冲

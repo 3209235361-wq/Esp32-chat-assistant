@@ -22,6 +22,11 @@
 //----INMP441----
 #define INMP441_SD 2       // from INMP441 SD
 
+#define RECORD_SEC     30                // 假设最大录音秒数
+#define MAX_SAMPLES    (SAMPLE_RATE * RECORD_SEC)      // 最大录音缓冲大小
+#define RECV_MAX       (SAMPLE_RATE * 20)              // 接收缓冲最大 20 秒
+#define SILENCE_END_FRAMES 16
+
 //----sample rate----
 #define SAMPLE_RATE 16000
 
