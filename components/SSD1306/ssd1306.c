@@ -2,7 +2,7 @@
 #include "ssd1306_font.h"
 #include "driver/i2c_master.h"
 #include <string.h>
-
+#include "esp_check.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -12,6 +12,7 @@
 #define I2C_FREQ  400000
 
 SemaphoreHandle_t ssd1306_semaphore = NULL;
+const char *TAG_OLED="oled";
 
 static i2c_master_dev_handle_t dev_handle;
 static uint8_t framebuffer[SSD1306_WIDTH * SSD1306_HEIGHT / 8];
@@ -42,6 +43,7 @@ static void ssd1306_write_cmd(const uint8_t *data, size_t len)
 
 void ssd1306_init(uint8_t sda, uint8_t scl)
 {
+    esp_err_t result;
     // 必须在任何 ssd1306_xxx 调用之前创建：这些函数内部都会 take 这把锁
     ssd1306_semaphore = xSemaphoreCreateRecursiveMutex();
     assert(ssd1306_semaphore);
@@ -55,14 +57,16 @@ void ssd1306_init(uint8_t sda, uint8_t scl)
         .flags.enable_internal_pullup = true,
     };
     i2c_master_bus_handle_t bus_handle;
-    i2c_new_master_bus(&bus_cfg, &bus_handle);
+    result = i2c_new_master_bus(&bus_cfg, &bus_handle);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_OLED, "i2c_new_master_bus failed: %s", esp_err_to_name(result));
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
         .device_address = I2C_ADDR,
         .scl_speed_hz = I2C_FREQ,
     };
-    i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle);
+    result = i2c_master_bus_add_device(bus_handle, &dev_cfg, &dev_handle);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_OLED, "i2c_master_bus_add_device failed: %s", esp_err_to_name(result));
 
     // Send init commands with 0x00 prefix for each byte
     uint8_t buf[2];

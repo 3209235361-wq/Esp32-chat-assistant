@@ -1,4 +1,6 @@
 #include "led.h"
+#include "esp_log.h"
+const char *TAG_LED = "led";
 
 int led_state[4]={LED_CLOSE,LED_MIDDLE_BRIGHTNESS,LED_DEFAULT_BRIGHTNESS,LED_MAX_BRIGHTNESS};
 char *led_str_state[4]={ "Close","Middle","Default","Max" };
@@ -21,6 +23,7 @@ void LED_Init(void){
         .hpoint = 0,
     };
     ledc_channel_config(&channel_config);
+    ESP_LOGI(TAG_LED, "LED_Init done!");
 }
 
 void Set_Level_LED(uint32_t brightness){

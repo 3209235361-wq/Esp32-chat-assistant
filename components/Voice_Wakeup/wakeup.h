@@ -9,6 +9,7 @@
 #include "esp_afe_config.h"
 #include "model_path.h"
 
+extern const char *TAG_WAKEUP;
 void WakeEngine_Init(void);
 
 #endif

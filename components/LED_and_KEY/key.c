@@ -1,5 +1,6 @@
 #include "key.h"
-
+#include "esp_log.h"
+const char *TAG_KEY = "key";
 void KEY_Init(void){
     gpio_reset_pin(KEY_PIN_UP);
     gpio_set_direction(KEY_PIN_UP, GPIO_MODE_INPUT);
@@ -13,4 +14,5 @@ void KEY_Init(void){
     gpio_reset_pin(KEY_PIN_EXIT);
     gpio_set_direction(KEY_PIN_EXIT, GPIO_MODE_INPUT);
     gpio_set_pull_mode(KEY_PIN_EXIT, GPIO_PULLUP_ONLY);
+    ESP_LOGI(TAG_KEY, "KEY_Init done!");
 }

@@ -3,6 +3,7 @@
 #include "led.h"
 #include "audio.h"
 #include <assert.h>
+#include <stdbool.h>
 
 void list_init(Header_t *header){
     assert(header);
@@ -18,9 +19,9 @@ void list_insert_tail(Header_t *header,Node_t *node){
     node->list.next=&header->head;
 }
 
-int list_isEmpty(Header_t *header){
+bool list_isEmpty(Header_t *header){
     assert(header);
-    return (header->head.next == &header->head)?-1:0;
+    return (header->head.next == &header->head)?true:false;
 }
 
 void motor_adjust(struct Node *node,int d){

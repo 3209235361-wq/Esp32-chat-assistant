@@ -1,5 +1,6 @@
 #include "audio.h"
-
+#include "esp_check.h"
+const char *TAG_AUDIO = "audio";
 
 // ---- 句柄：操作 I2S 通道的"编号" ----
 i2s_chan_handle_t rx_handle;  // RX 通道，麦克风→ESP32
@@ -13,6 +14,7 @@ static uint8_t current_volume = VOLUME_DEFAULT;
 
 void Audio_Init(void)
 {
+    esp_err_t result;
     // ========== 第1步：关功放，防止初始化时喇叭爆音 ==========
     gpio_reset_pin(AMP_SD);
     gpio_set_direction(AMP_SD, GPIO_MODE_OUTPUT);
@@ -22,7 +24,9 @@ void Audio_Init(void)
     i2s_chan_config_t chan_cfg= I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0,I2S_ROLE_MASTER);
     // I2S_NUM_0: 主I2S通道，用于麦克风和喇叭
     // I2S_ROLE_MASTER: 主角色ESP32，用于输出BCLK和WS(clock data)
-    i2s_new_channel(&chan_cfg,&tx_handle,&rx_handle);
+    
+    result=i2s_new_channel(&chan_cfg,&tx_handle,&rx_handle);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_AUDIO, "i2s_new_channel failed: %s", esp_err_to_name(result));
 
     // ========== 第3步：填配置结构体 ==========
     i2s_std_config_t std_cfg = {
@@ -56,12 +60,17 @@ void Audio_Init(void)
     };
     //先初始化TX通道，再初始化RX通道
     // 因为TX通道是主角色，用于输出BCLK和WS(clock data)，不然时序会乱,声音会失真
-    i2s_channel_init_std_mode(tx_handle,&std_cfg);
-    i2s_channel_init_std_mode(rx_handle,&std_cfg);
+    result=i2s_channel_init_std_mode(tx_handle,&std_cfg);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_AUDIO, "i2s_channel_init_std_mode failed: %s", esp_err_to_name(result));
+    
+    result=i2s_channel_init_std_mode(rx_handle,&std_cfg);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_AUDIO, "i2s_channel_init_std_mode failed: %s", esp_err_to_name(result));
 
     // ========== 第4步：启用通道（TX必须先于RX，TX提供时钟）==========
-    i2s_channel_enable(tx_handle);
-    i2s_channel_enable(rx_handle);
+    result=i2s_channel_enable(tx_handle);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_AUDIO, "i2s_channel_enable failed: %s", esp_err_to_name(result));
+    result=i2s_channel_enable(rx_handle);
+    ESP_RETURN_VOID_ON_ERROR(result, TAG_AUDIO, "i2s_channel_enable failed: %s", esp_err_to_name(result));
 }
 
 // 读取麦克风数据

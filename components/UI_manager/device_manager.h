@@ -47,6 +47,6 @@ void voice_adjust(struct Node *node,int d);
 
 void list_init(Header_t *header);
 void list_insert_tail(Header_t *header,Node_t *node);
-int list_isEmpty(Header_t *header);
+bool list_isEmpty(Header_t *header);
 
 #endif

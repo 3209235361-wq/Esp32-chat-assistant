@@ -1,5 +1,7 @@
 #include "voice_client.h"
 #include "esp_http_client.h"
+#include "esp_log.h"
+#include "esp_check.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -11,6 +13,8 @@ static char g_ai_text[256]   = "";
 int voice_state[4]={STD_CHINESE_FM_MODEL,STD_CHINESE_M_MODEL,CONTONESE_MODEL,ENGLISH_M_MODEL};
 char *voice_str_state[4]={ STD_CHINESE_FM,STD_CHINESE_M,CONTONESE,ENGLISH_M };
 static uint8_t current_voice = STD_CHINESE_FM_MODEL;
+
+const char *TAG_CLIENT="client";
 
 //接受指令
 static char g_command[16] = "none";
@@ -121,15 +125,30 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
         .event_handler  = _http_event_handler,
     };
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if(client == NULL){
+        ESP_LOGI(TAG_CLIENT,"HTTP init failed");
+        return false;
+    }
 
-    esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
-    esp_http_client_set_post_field(client,
+    esp_err_t result;
+    result=esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
+    if(result!=ESP_OK){
+        ESP_LOGI(TAG_CLIENT,"HTTP set header failed");
+        esp_http_client_cleanup(client);
+        return false;
+    }
+    result=esp_http_client_set_post_field(client,
                                    (const char *)pcm_in,
                                    len_in * sizeof(int16_t));
+    if(result!=ESP_OK){
+        ESP_LOGI(TAG_CLIENT,"HTTP set post field failed");
+        esp_http_client_cleanup(client);
+        return false;
+    }
 
-    esp_err_t err = esp_http_client_perform(client);
-    if (err != ESP_OK) {
-        printf("[HTTP] 请求失败: %d\n", err);
+    result=esp_http_client_perform(client);
+    if (result != ESP_OK) {
+        ESP_LOGI(TAG_CLIENT,"HTTP perform failed result");
         esp_http_client_cleanup(client);
         return false;
     }

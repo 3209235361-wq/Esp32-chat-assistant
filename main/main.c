@@ -32,8 +32,8 @@ QueueHandle_t command_queue = NULL;
 SemaphoreHandle_t for_record = NULL;
 
 static Header_t header;
-static Node_t node1={.name="motor",.label="1.Motor state",.state=DEFAULT_SPEED_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
-static Node_t node2={.name="led",.label="2.LED state",.state=LED_DEFAULT_T,.state_index=led_state,.state_table=led_str_state,.list={NULL,NULL},.func=led_adjust};
+static Node_t node1={.name="motor",.label="1.Motor state",.state=MOTOR_CLOSE_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
+static Node_t node2={.name="led",.label="2.LED state",.state=LED_CLOSE_T,.state_index=led_state,.state_table=led_str_state,.list={NULL,NULL},.func=led_adjust};
 static Node_t node3={.name="volume",.label="3.Adjust volume",.state=VOLUME_DEFAULT_T,.state_index=volume_state,.state_table=volume_str_state,.list={NULL,NULL},.func=volume_adjust};
 static Node_t node4={.name="voice",.label="4.Switch voice",.state=STD_CHINESE_FM_MODEL,.state_index=voice_state,.state_table=voice_str_state,.list={NULL,NULL},.func=voice_adjust};
 enum oled_pos{
@@ -43,13 +43,13 @@ enum oled_pos{
 #define REFRESH_VALUE 0xFF
 void WiFi_SetStateCallBack(void (*cb)(void));
 void wifi_change_to(void);
+static void dump_stack_usage(void);
 
 
 //for wakeup
 extern i2s_chan_handle_t rx_handle;
 extern esp_afe_sr_data_t *afe_data;
 extern const esp_afe_sr_iface_t *afe_handle;
-extern const char *TAG0;
 static int afe_mic_read(int16_t *rec_buf,int samples){
     size_t rec_len=0;   
     esp_err_t err=i2s_channel_read(rx_handle,rec_buf,samples*2,&rec_len,portMAX_DELAY);
@@ -60,8 +60,11 @@ void Task_AFE_Mic(void *parameter){
     //wakeword=你好小智
     int feed_chunk=afe_handle->get_feed_chunksize(afe_data);
     int16_t *in_buf=heap_caps_malloc(feed_chunk*2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-    assert(in_buf);
-
+    if(in_buf == NULL){
+        ESP_LOGI(TAG_WAKEUP,"Task_AFE_Mic:in_buf malloc failed");
+        return;
+    }
+    
     static int silence_frames=0;
     bool woken=false;
     int offset=0;
@@ -82,14 +85,14 @@ void Task_AFE_Mic(void *parameter){
             woken=true;
             silence_frames=0;
             offset=0;
-            ESP_LOGI(TAG0,"wake word! index=%d",res->wake_word_index);
+            ESP_LOGI(TAG_WAKEUP,"wake word! index=%d",res->wake_word_index);
         }
 
         //录音处理
         if(woken){
             //判断是否超过最大录音缓冲大小
             if(offset+res->data_size>=MAX_SAMPLES*2){
-                ESP_LOGI(TAG0,"speech end");
+                ESP_LOGI(TAG_WAKEUP,"speech end");
                 int samples=offset/2;
                 xQueueSend(audio_queue, &samples, portMAX_DELAY);
                 offset=0;
@@ -108,7 +111,8 @@ void Task_AFE_Mic(void *parameter){
             //静音检测
             if(res->vad_state==VAD_SILENCE){
                 if(++silence_frames>=SILENCE_END_FRAMES){
-                    ESP_LOGI(TAG0,"speech end");
+                    ESP_LOGI(TAG_WAKEUP,"speech end");
+                    // ESP_LOGI(TAG_WAKEUP,"unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
                     woken=false;
                     int samples=offset/2;
                     xQueueSend(audio_queue, &samples, portMAX_DELAY);
@@ -119,6 +123,7 @@ void Task_AFE_Mic(void *parameter){
             }
             else{silence_frames=0;}
         }
+        
     }
 }
 void Task_Handle_Play(void *parameter){
@@ -141,6 +146,8 @@ void Task_Handle_Play(void *parameter){
             vTaskDelay(pdMS_TO_TICKS(300));
             amp_enable(false);
             vTaskDelay(pdMS_TO_TICKS(100));
+
+            // ESP_LOGI("Handle_Play","unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
 
             strncpy(command,voice_last_command(),sizeof(command)-1);
             command[sizeof(command)-1]='\0';            
@@ -279,6 +286,7 @@ void Task_OLED_Display(void *parameter){
             show_inside(node);
         }
         ssd1306_update();
+        // ESP_LOGI("OLED_Display","unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
@@ -310,7 +318,7 @@ void app_main(void)
     // ---- 2. 先拉起 UI 任务 ----
     //不依赖wifi
     key_queue=xQueueCreate(8, sizeof(int));
-    xTaskCreate(Task_OLED_Display, "OLED", 2048, NULL, 1, NULL);
+    xTaskCreate(Task_OLED_Display, "OLED", 3072, NULL, 1, NULL);
     xTaskCreate(Task_Key, "Key", 2048, NULL, 2, NULL);
 
     // ---- 3. 音频初始化 ----
@@ -339,12 +347,17 @@ void app_main(void)
     command_queue=xQueueCreate(1, sizeof(command));
     for_record=xSemaphoreCreateMutex();
 
-    xTaskCreate(Task_AFE_Mic, "Mic", 8192, NULL, 3, NULL);
+    xTaskCreate(Task_AFE_Mic, "Mic", 4096, NULL, 3, NULL);
     xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
     xTaskCreate(Task_Command, "Command", 2048, NULL, 1, NULL);
 
-
-    while (1){   
+    bool dumped = false;
+    while (1){
+        //print the stack unsued sizes after ten seconds,just once print
+        if (!dumped && xTaskGetTickCount() > pdMS_TO_TICKS(10000)) {
+            dump_stack_usage();
+            dumped = true;
+        }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
@@ -355,4 +368,10 @@ void WiFi_SetStateCallBack(void (*cb)(void)){
 void wifi_change_to(void){
     int r=REFRESH_VALUE;
     xQueueSend(key_queue,&r,0);//不阻塞
+}
+static void dump_stack_usage(void)
+{
+    static char buf[2048];   // 放静态区，格式化时不再额外吃任务栈
+    vTaskList(buf);
+    ESP_LOGI("STACK", "\nTask\t\tState\tPrio\tStack\tNum\tCore\n%s", buf);
 }

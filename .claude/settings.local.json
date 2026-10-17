@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(mkdir -p \"/d/ESP32_project/sample_project/components/http_client\")",
-      "Bash(where idf.py)"
+      "Bash(where idf.py)",
+      "Bash(sed -n '313,319p' \"D:/Espressif/frameworks/esp-idf-v5.4.4/components/freertos/FreeRTOS-Kernel/include/freertos/task.h\")",
+      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/components/freertos/FreeRTOS-Kernel/include/freertos/**)",
+      "Read(//d/Espressif/tools/xtensa-esp-elf/**)",
+      "Read(//d/Espressif/tools/cmake/bin/**)",
+      "Bash(cd \"D:/ESP32_project/Chat_Assistant\" && grep -rl \"\\\\\"tiT\\\\\"\" build/esp-idf/espressif__esp-sr build/esp-idf/espressif__esp-dl 2>/dev/null | head; grep -rn \"xTaskCreate.*tiT\\\\|tiT\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/components\" --include=*.c 2>/dev/null | head)",
+      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/components/**)"
     ],
     "additionalDirectories": [
       "D:\\ESP32_project\\sample_project\\components"

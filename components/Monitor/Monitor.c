@@ -1,7 +1,8 @@
 #include "Monitor.h"
 #include "driver/gpio.h"
 #include "driver/ledc.h"
-
+#include "esp_log.h"
+const char *TAG_MONITOR = "monitor";
 int motor_state[4]={MOTOR_CLOSE,MIDDLE_SPEED,DEFAULT_SPEED,MAX_SPEED};
 char *motor_str_state[4]={ "Close","Middle","Default","Max" };
 
@@ -30,6 +31,7 @@ void Monitor_Init(void){
         .speed_mode = LEDC_LOW_SPEED_MODE,
     };
     ledc_channel_config(&channel_config);
+    ESP_LOGI(TAG_MONITOR, "Monitor_Init done!");
 }
 
 void motor_set_speed(int speed){
