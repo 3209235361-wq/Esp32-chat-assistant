@@ -1,10 +1,12 @@
 #include "led.h"
-#include "esp_log.h"
+#include "my_check.h"
 const char *TAG_LED = "led";
+int led_init_err_cnt=0;
 
 int led_state[4]={LED_CLOSE,LED_MIDDLE_BRIGHTNESS,LED_DEFAULT_BRIGHTNESS,LED_MAX_BRIGHTNESS};
 char *led_str_state[4]={ "Close","Middle","Default","Max" };
 void LED_Init(void){
+    esp_err_t ret;
     ledc_timer_config_t timer_config={
         .clk_cfg = LEDC_AUTO_CLK,
         .duty_resolution = LEDC_TIMER_8_BIT,
@@ -12,7 +14,8 @@ void LED_Init(void){
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .timer_num = LED_PWM_TIMER,
     };
-    ledc_timer_config(&timer_config);
+    ret = ledc_timer_config(&timer_config);
+    CHECK_ERR(ret, led_init_err_cnt, TAG_LED);
 
     ledc_channel_config_t channel_config={
         .channel = LED_PWM_CHANNEL,
@@ -22,8 +25,8 @@ void LED_Init(void){
         .timer_sel = LED_PWM_TIMER,
         .hpoint = 0,
     };
-    ledc_channel_config(&channel_config);
-    ESP_LOGI(TAG_LED, "LED_Init done!");
+    ret = ledc_channel_config(&channel_config);
+    CHECK_ERR(ret, led_init_err_cnt, TAG_LED);
 }
 
 void Set_Level_LED(uint32_t brightness){

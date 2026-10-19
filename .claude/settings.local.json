@@ -8,7 +8,12 @@
       "Read(//d/Espressif/tools/xtensa-esp-elf/**)",
       "Read(//d/Espressif/tools/cmake/bin/**)",
       "Bash(cd \"D:/ESP32_project/Chat_Assistant\" && grep -rl \"\\\\\"tiT\\\\\"\" build/esp-idf/espressif__esp-sr build/esp-idf/espressif__esp-dl 2>/dev/null | head; grep -rn \"xTaskCreate.*tiT\\\\|tiT\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/components\" --include=*.c 2>/dev/null | head)",
-      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/components/**)"
+      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/components/**)",
+      "Bash(/c/Windows/System32/cmd.exe //c \"set MSYSTEM=&& set IDF_PATH=D:\\\\Espressif\\\\frameworks\\\\esp-idf-v5.4.4&& set IDF_TOOLS_PATH=D:\\\\Espressif&& set IDF_PYTHON_ENV_PATH=D:\\\\Espressif\\\\python_env\\\\idf5.4_py3.11_env&& set PATH=D:\\\\Espressif\\\\tools\\\\xtensa-esp-elf\\\\esp-14.2.0_20260121\\\\xtensa-esp-elf\\\\bin;D:\\\\Espressif\\\\tools\\\\cmake\\\\3.30.2\\\\bin;D:\\\\Espressif\\\\tools\\\\ninja\\\\1.12.1;%PATH%&& cd /d D:\\\\ESP32_project\\\\Chat_Assistant&& D:\\\\Espressif\\\\python_env\\\\idf5.4_py3.11_env\\\\Scripts\\\\python.exe D:\\\\Espressif\\\\frameworks\\\\esp-idf-v5.4.4\\\\tools\\\\idf.py build\")",
+      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/components/esp_common/include/**)",
+      "Bash(grep -rn \"main\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/project.cmake\" | grep -i \"require\\\\|component\" | head -20; echo \"---\"; grep -rn \"COMPONENT_REQUIRES_COMMON\\\\|requires all\\\\|main component\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/\"*.cmake | head -20)",
+      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/**)",
+      "Bash(sed -n '740,790p' \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/project.cmake\")"
     ],
     "additionalDirectories": [
       "D:\\ESP32_project\\sample_project\\components"

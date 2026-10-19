@@ -12,6 +12,7 @@
 #define KEY_PIN_EXIT 11
 #define KEY_DEBOUNCE_MS 20
 
+extern int key_init_err_cnt;
 enum key_status{
     UP=0,
     DOWN=1,

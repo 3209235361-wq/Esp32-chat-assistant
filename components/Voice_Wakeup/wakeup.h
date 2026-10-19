@@ -10,6 +10,7 @@
 #include "model_path.h"
 
 extern const char *TAG_WAKEUP;
+extern int wakeup_init_err_cnt;
 void WakeEngine_Init(void);
 
 #endif

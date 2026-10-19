@@ -6,13 +6,15 @@
 #include "wifi.h"
 #include "ssd1306.h"
 #include "key.h"
+#include "led.h"
+#include "Monitor.h"
 #include "device_manager.h"
 #include "voice_client.h"
 #include "wakeup.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
-
+#include "my_check.h"
 
 // ---- change here/改这里 ----
 #define WIFI_SSID      "宇智波皮的iPhone"
@@ -21,27 +23,29 @@
 #define SERVER_IP      "172.20.10.3"   // phone hotspot/手机热点：172.20.10.x，连同一热点后查电脑IP
 #define SERVER_PORT    8006
 
-static int16_t *rec_buf=NULL;   // 录音缓冲（malloc 到 PSRAM）
+static int16_t *rec_buf[2]={NULL,NULL};   // 录音双缓冲（malloc 到 PSRAM）
+static int rec_buf_index=0;   // 录音缓冲索引
+struct msg{
+    int rec_buf_index;
+    int samples;
+};
 static int16_t *play_buf = NULL;   // 播放缓冲
+const char *TAG_PLAY = "play";
 
 static char command[16];
 
 QueueHandle_t audio_queue = NULL;
 QueueHandle_t key_queue = NULL;
 QueueHandle_t command_queue = NULL;
-SemaphoreHandle_t for_record = NULL;
+SemaphoreHandle_t for_command = NULL;
 
 static Header_t header;
 static Node_t node1={.name="motor",.label="1.Motor state",.state=MOTOR_CLOSE_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
 static Node_t node2={.name="led",.label="2.LED state",.state=LED_CLOSE_T,.state_index=led_state,.state_table=led_str_state,.list={NULL,NULL},.func=led_adjust};
 static Node_t node3={.name="volume",.label="3.Adjust volume",.state=VOLUME_DEFAULT_T,.state_index=volume_state,.state_table=volume_str_state,.list={NULL,NULL},.func=volume_adjust};
 static Node_t node4={.name="voice",.label="4.Switch voice",.state=STD_CHINESE_FM_MODEL,.state_index=voice_state,.state_table=voice_str_state,.list={NULL,NULL},.func=voice_adjust};
-enum oled_pos{
-    INSIDE,
-    OUTSIDE
-};
+
 #define REFRESH_VALUE 0xFF
-void WiFi_SetStateCallBack(void (*cb)(void));
 void wifi_change_to(void);
 static void dump_stack_usage(void);
 
@@ -61,10 +65,10 @@ void Task_AFE_Mic(void *parameter){
     int feed_chunk=afe_handle->get_feed_chunksize(afe_data);
     int16_t *in_buf=heap_caps_malloc(feed_chunk*2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
     if(in_buf == NULL){
-        ESP_LOGI(TAG_WAKEUP,"Task_AFE_Mic:in_buf malloc failed");
-        return;
+        ESP_LOGE(TAG_WAKEUP,"Task_AFE_Mic:in_buf malloc failed,inspect heap memory!");
+        while(1) vTaskDelay(pdMS_TO_TICKS(100));
     }
-    
+    struct msg msg={0,0};
     static int silence_frames=0;
     bool woken=false;
     int offset=0;
@@ -88,13 +92,17 @@ void Task_AFE_Mic(void *parameter){
             ESP_LOGI(TAG_WAKEUP,"wake word! index=%d",res->wake_word_index);
         }
 
+        
         //录音处理
         if(woken){
             //判断是否超过最大录音缓冲大小
             if(offset+res->data_size>=MAX_SAMPLES*2){
                 ESP_LOGI(TAG_WAKEUP,"speech end");
                 int samples=offset/2;
-                xQueueSend(audio_queue, &samples, portMAX_DELAY);
+                msg.rec_buf_index=rec_buf_index;
+                msg.samples=samples;
+                rec_buf_index=1-rec_buf_index;
+                xQueueSend(audio_queue, &msg, portMAX_DELAY);
                 offset=0;
                 silence_frames=0;
                 woken=false;                
@@ -103,9 +111,7 @@ void Task_AFE_Mic(void *parameter){
             }
 
             //将数据复制到rec_buf
-            xSemaphoreTake(for_record,portMAX_DELAY);
-            memcpy((uint8_t *)rec_buf+offset,res->data,res->data_size);
-            xSemaphoreGive(for_record);
+            memcpy((uint8_t *)rec_buf[rec_buf_index]+offset,res->data,res->data_size);    
             offset+=res->data_size;
 
             //静音检测
@@ -115,7 +121,10 @@ void Task_AFE_Mic(void *parameter){
                     // ESP_LOGI(TAG_WAKEUP,"unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
                     woken=false;
                     int samples=offset/2;
-                    xQueueSend(audio_queue, &samples, portMAX_DELAY);
+                    msg.rec_buf_index=rec_buf_index;
+                    msg.samples=samples;
+                    rec_buf_index=1-rec_buf_index;
+                    xQueueSend(audio_queue, &msg, portMAX_DELAY);
                     offset=0;
                     silence_frames=0;
                     vTaskDelay(pdMS_TO_TICKS(100));
@@ -127,15 +136,14 @@ void Task_AFE_Mic(void *parameter){
     }
 }
 void Task_Handle_Play(void *parameter){
-    size_t samples=0;
+    struct msg msg={0,0};
     size_t play_len=0;
     while(1){
-        if(xQueueReceive(audio_queue, &samples, portMAX_DELAY)==pdTRUE){
+        if(xQueueReceive(audio_queue, &msg, portMAX_DELAY)==pdTRUE){
             play_len= RECV_MAX;
-            xSemaphoreTake(for_record , portMAX_DELAY);
-            bool ok=voice_send_receive(rec_buf, samples, play_buf, &play_len);
-            xSemaphoreGive(for_record);
+            bool ok=voice_send_receive(rec_buf[msg.rec_buf_index], msg.samples, play_buf, &play_len);
             if(ok==false||play_len==0){
+                ESP_LOGE(TAG_PLAY,"voice_send_receive failed!");
                 continue;
             }
 
@@ -162,6 +170,7 @@ void Task_Command(void *parameter){
     static char temp_command[16];
     while(1){
         if(xQueueReceive(command_queue, temp_command, portMAX_DELAY)==pdTRUE){
+            xSemaphoreTake(for_command,portMAX_DELAY);
             if(strcmp(temp_command,"led_on")==0){
                 Set_Level_LED(LED_DEFAULT_BRIGHTNESS);
                 node2.state=LED_DEFAULT_T; 
@@ -194,6 +203,7 @@ void Task_Command(void *parameter){
                 motor_set_speed(MIDDLE_SPEED);
                 node1.state=MIDDLE_SPEED_T; 
             }
+            xSemaphoreGive(for_command);
             int r=REFRESH_VALUE;
             xQueueSend(key_queue, &r, portMAX_DELAY);
         }
@@ -224,14 +234,14 @@ void Task_Key(void *parameter){
 void Task_OLED_Display(void *parameter){
     uint32_t key_state=UP;
     mList_t *original_list=header.head.next;
-    static int oled_pos=OUTSIDE;
+    static int oled_pos=OLED_OUTSIDE;
     show_outside(&header,original_list);
     ssd1306_update();
     while(1){
         if(xQueueReceive(key_queue, &key_state, portMAX_DELAY)!=pdTRUE){
             continue;
         }
-        if(oled_pos == OUTSIDE){
+        if(oled_pos == OLED_OUTSIDE){
             switch(key_state){
                 case UP:
                     if(original_list != header.head.next){
@@ -250,7 +260,7 @@ void Task_OLED_Display(void *parameter){
                     }
                     break;
                 case VERITY:
-                    oled_pos=INSIDE;
+                    oled_pos=OLED_INSIDE;
                     break;   
                 default:
                     show_outside(&header,original_list);
@@ -259,17 +269,21 @@ void Task_OLED_Display(void *parameter){
                 
                 }
             }
-        else if(oled_pos == INSIDE){
+        else if(oled_pos == OLED_INSIDE){
             Node_t *node=container_of(original_list,Node_t,list);
             switch(key_state){
                 case UP:
+                    xSemaphoreTake(for_command,portMAX_DELAY);
                     node->func(node,1);
+                    xSemaphoreGive(for_command);
                     break;
                 case DOWN:
+                    xSemaphoreTake(for_command,portMAX_DELAY);
                     node->func(node,-1);
+                    xSemaphoreGive(for_command);
                     break;
                 case EXIT:
-                    oled_pos=OUTSIDE;
+                    oled_pos=OLED_OUTSIDE;
                     break;
                 default:
                     show_inside(node);
@@ -278,7 +292,7 @@ void Task_OLED_Display(void *parameter){
             }
                 
         }
-        if(oled_pos == OUTSIDE){
+        if(oled_pos == OLED_OUTSIDE){
             show_outside(&header,original_list);
         }
         else{
@@ -293,16 +307,21 @@ void Task_OLED_Display(void *parameter){
 
 void app_main(void)
 {
-    KEY_Init();
-    LED_Init();
-    Monitor_Init();
-    WakeEngine_Init();
-    
-    // ---- 1. OLED 初始化 ----
-    ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);
+    for_command=xSemaphoreCreateMutex();
+    if(for_command == NULL){
+        printf("[Init] xSemaphoreCreateMutex failed!\n");
+        while (1) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    // ---- 1. 外设 初始化 ----
+    ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);INIT_CHECK_ERR(oled_init_err_cnt,"OLED");
     ssd1306_fill(0);
     ssd1306_update();
 
+    KEY_Init();INIT_CHECK_ERR(key_init_err_cnt,"KEY");
+    LED_Init();INIT_CHECK_ERR(led_init_err_cnt,"LED");
+    Monitor_Init();INIT_CHECK_ERR(monitor_init_err_cnt,"MONITOR");
+    WakeEngine_Init();INIT_CHECK_ERR(wakeup_init_err_cnt,"WAKEUP");
+    
     list_init(&header);
     list_insert_tail(&header,&node1);
     list_insert_tail(&header,&node2);
@@ -314,7 +333,6 @@ void app_main(void)
         return;
     }
 
-
     // ---- 2. 先拉起 UI 任务 ----
     //不依赖wifi
     key_queue=xQueueCreate(8, sizeof(int));
@@ -322,30 +340,30 @@ void app_main(void)
     xTaskCreate(Task_Key, "Key", 2048, NULL, 2, NULL);
 
     // ---- 3. 音频初始化 ----
-    Audio_Init();
+    Audio_Init();INIT_CHECK_ERR(audio_init_err_cnt,"AUDIO");
     amp_enable(false);  // 先静音
 
-
-    WiFi_SetStateCallBack(wifi_change_to);
     // ---- 4. 连接 WiFi ----
     // 注意：WiFi_Connect 内部是 portMAX_DELAY 阻塞等 IP，连不上会一直卡在这句。
+    WiFi_SetStateCallBack(wifi_change_to);
     printf("[Init] WiFi connecting...\n");
     WiFi_Connect(WIFI_SSID, WIFI_PASSWORD);
     printf("[Init] WiFi OK\n");
 
     // ---- 5. 设后端地址 + 分配缓冲区 ----
     voice_set_server(SERVER_IP, SERVER_PORT);
-    rec_buf  = malloc(MAX_SAMPLES * sizeof(int16_t));
+    rec_buf[0] = malloc(MAX_SAMPLES * sizeof(int16_t));
+    rec_buf[1] = malloc(MAX_SAMPLES * sizeof(int16_t));
     play_buf = malloc(RECV_MAX   * sizeof(int16_t));
-    if (!rec_buf || !play_buf) {
-        printf("[Init] malloc failed! rec=%p play=%p\n", rec_buf, play_buf);
-        while (1) vTaskDelay(1000);
+    if (!rec_buf[0] || !rec_buf[1] || !play_buf) {
+        printf("[Init] malloc failed! rec[0]=%p rec[1]=%p  play=%p\n", rec_buf[0], rec_buf[1], play_buf);
+        while (1) vTaskDelay(pdMS_TO_TICKS(1000));
     }
     printf("[Init] rec=%d samples  play=%d samples\n", MAX_SAMPLES, RECV_MAX);
 
-    audio_queue=xQueueCreate(1, sizeof(size_t));
+    audio_queue=xQueueCreate(1, sizeof(struct msg));
     command_queue=xQueueCreate(1, sizeof(command));
-    for_record=xSemaphoreCreateMutex();
+    
 
     xTaskCreate(Task_AFE_Mic, "Mic", 4096, NULL, 3, NULL);
     xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
@@ -362,9 +380,7 @@ void app_main(void)
     }
 }
 
-void WiFi_SetStateCallBack(void (*cb)(void)){
-    wifi_state_cb=cb;
-}
+
 void wifi_change_to(void){
     int r=REFRESH_VALUE;
     xQueueSend(key_queue,&r,0);//不阻塞

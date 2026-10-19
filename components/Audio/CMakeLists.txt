@@ -1,3 +1,3 @@
 idf_component_register(SRCS "audio.c"
                         INCLUDE_DIRS "."
-                        REQUIRES "driver" "freertos")
+                        REQUIRES "driver" "freertos" "check_err")

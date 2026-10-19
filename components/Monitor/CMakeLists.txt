@@ -1,3 +1,3 @@
 idf_component_register(SRCS "Monitor.c"
         INCLUDE_DIRS "."
-        REQUIRES "driver")
+        REQUIRES "driver" "freertos" "check_err")

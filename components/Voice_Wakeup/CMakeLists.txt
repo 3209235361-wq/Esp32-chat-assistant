@@ -1,3 +1,3 @@
 idf_component_register(SRCS "wakeup.c"
                     INCLUDE_DIRS "."
-                    PRIV_REQUIRES "esp-sr" "freertos")
+                    PRIV_REQUIRES "esp-sr" "freertos" "check_err")

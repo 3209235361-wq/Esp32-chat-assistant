@@ -23,6 +23,7 @@ static char g_command[16] = "none";
 static uint8_t *g_recv_buf = NULL;
 static size_t   g_recv_max = 0;
 static size_t   g_recv_total = 0;
+static bool     g_recv_overflow = false;
 
 // ================================================================
 //  voice_set_server() — 设置后端地址
@@ -94,6 +95,10 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             memcpy(g_recv_buf + g_recv_total, evt->data, evt->data_len);
             g_recv_total += evt->data_len;
         }
+        else{
+            ESP_LOGW(TAG_CLIENT,"The size of received data(%u) exceeds the max size(%u).",(unsigned)(g_recv_total+evt->data_len),(unsigned)g_recv_max);
+            g_recv_overflow = true;
+        }
         break;
     default:
         break;
@@ -107,6 +112,12 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
                               int16_t *pcm_out, size_t *len_out)
 {
+    strncpy(g_command,"none",sizeof(g_command)-1);
+    g_command[sizeof(g_command)-1]='\0';
+    strncpy(g_user_text,"",sizeof(g_user_text)-1);
+    g_user_text[sizeof(g_user_text)-1]='\0';
+    strncpy(g_ai_text,"",sizeof(g_ai_text)-1);
+    g_ai_text[sizeof(g_ai_text)-1]='\0';
     char url[128+1];
     snprintf(url, sizeof(url), "http://%s:%d/voice?sr=16000&bits=16&ch=1&voice=%d",
              g_host, g_port, current_voice);
@@ -115,6 +126,8 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     g_recv_buf   = (uint8_t *)pcm_out;
     g_recv_max   = (*len_out) * sizeof(int16_t);
     g_recv_total = 0;
+    g_recv_overflow = false;
+
 
     esp_http_client_config_t cfg = {
         .url            = url,
@@ -162,6 +175,7 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     g_recv_buf = NULL;
 
     if (status != 200) return false;
+    if(g_recv_overflow) return false;
 
     *len_out = g_recv_total / sizeof(int16_t);
     printf("[HTTP] 收到 %u bytes PCM (%d samples)\n",

@@ -1,3 +1,3 @@
 idf_component_register(SRCS "ssd1306.c"
                     INCLUDE_DIRS "."
-                    REQUIRES "driver" "freertos" "UI_manager" "Wi-Fi")
+                    REQUIRES "driver" "freertos" "UI_manager" "Wi-Fi" "check_err")

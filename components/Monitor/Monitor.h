@@ -20,9 +20,8 @@ enum MOTOR_STATE{
 
 extern int motor_state[4];
 extern char *motor_str_state[4];
+extern int monitor_init_err_cnt;
 void Monitor_Init(void);
 void motor_set_speed(int speed);
-void motor_break(void);
-
 
 #endif

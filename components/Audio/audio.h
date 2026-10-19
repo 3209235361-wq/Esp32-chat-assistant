@@ -44,10 +44,9 @@ enum volume_state{
 
 extern char *volume_str_state[4];
 extern int volume_state[4];
-
+extern int audio_init_err_cnt;
 
 void Audio_Init(void);
-int16_t mic_read(void);
 void spk_write(const int16_t *sample_data,size_t count);
 void amp_enable(bool on);
 void spk_set_volume(uint8_t level);

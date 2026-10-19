@@ -21,7 +21,7 @@ enum LED_STATE{
     LED_DEFAULT_T,
     LED_MAX_T,
 };
-
+extern int led_init_err_cnt;
 extern int led_state[4];
 extern char *led_str_state[4];
 

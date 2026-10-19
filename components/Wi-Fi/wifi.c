@@ -14,6 +14,11 @@ static const int WIFI_CONNECTED = BIT0;
 char *wifi_str_state[2] = {"NOT_OK","OK"};
 void (*wifi_state_cb)(void) = NULL;
 
+// 设置wifi状态回调函数
+void WiFi_SetStateCallBack(void (*cb)(void)){
+    wifi_state_cb=cb;
+}
+
 // 事件处理函数
 void event_handler(void *arg, esp_event_base_t base, int32_t id, void *data){
     if(base == WIFI_EVENT && id == WIFI_EVENT_STA_START){

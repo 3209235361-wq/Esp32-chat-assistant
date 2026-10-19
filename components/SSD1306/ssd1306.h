@@ -15,7 +15,11 @@ enum ssd1306_color{
     SSD1306_BLACK = 0,
     SSD1306_WHITE = 1,
 };
-
+enum oled_pos{
+    OLED_INSIDE,
+    OLED_OUTSIDE
+};
+extern int oled_init_err_cnt;
 void ssd1306_init(uint8_t sda, uint8_t scl);
 void ssd1306_fill(uint8_t color);
 void ssd1306_update(void);
