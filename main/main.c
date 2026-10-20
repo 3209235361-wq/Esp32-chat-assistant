@@ -14,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "my_check.h"
 
 // ---- change here/改这里 ----
@@ -38,6 +39,7 @@ QueueHandle_t audio_queue = NULL;
 QueueHandle_t key_queue = NULL;
 QueueHandle_t command_queue = NULL;
 SemaphoreHandle_t for_command = NULL;
+SemaphoreHandle_t buf_free[2]={NULL,NULL};//for mic and play
 
 static Header_t header;
 static Node_t node1={.name="motor",.label="1.Motor state",.state=MOTOR_CLOSE_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
@@ -74,6 +76,7 @@ void Task_AFE_Mic(void *parameter){
     int offset=0;
     while(1){
         vTaskDelay(pdMS_TO_TICKS(10));
+        
 
         //读取麦克风数据,feed给afe_data
         if(afe_mic_read(in_buf,feed_chunk)!=feed_chunk*2){
@@ -83,9 +86,10 @@ void Task_AFE_Mic(void *parameter){
 
         //获取数据
         afe_fetch_result_t *res=afe_handle->fetch(afe_data);
-        
+
         //唤醒检测
         if(!woken&&res->wakeup_state==WAKENET_DETECTED){
+            xSemaphoreTake(buf_free[rec_buf_index],portMAX_DELAY);
             woken=true;
             silence_frames=0;
             offset=0;
@@ -144,9 +148,10 @@ void Task_Handle_Play(void *parameter){
             bool ok=voice_send_receive(rec_buf[msg.rec_buf_index], msg.samples, play_buf, &play_len);
             if(ok==false||play_len==0){
                 ESP_LOGE(TAG_PLAY,"voice_send_receive failed!");
+                xSemaphoreGive(buf_free[msg.rec_buf_index]);
                 continue;
             }
-
+            xSemaphoreGive(buf_free[msg.rec_buf_index]);
             //播放回复
             amp_enable(true);
             //播放容量改为最大，确保播放完整（ai回复大小一般会大于录音大小）
@@ -312,6 +317,15 @@ void app_main(void)
         printf("[Init] xSemaphoreCreateMutex failed!\n");
         while (1) vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    buf_free[0]=xSemaphoreCreateBinary();//default 0(can not be used)
+    buf_free[1]=xSemaphoreCreateBinary();//default 0(can not be used)
+    if(buf_free[0] == NULL || buf_free[1] == NULL){
+        printf("[Init] xSemaphoreCreateBinary failed!\n");
+        while (1) vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    xSemaphoreGive(buf_free[0]);//0->1(can be used)
+    xSemaphoreGive(buf_free[1]);//0->1(can be used)
+    
     // ---- 1. 外设 初始化 ----
     ssd1306_init(I2C_SDA_PIN, I2C_SCL_PIN);INIT_CHECK_ERR(oled_init_err_cnt,"OLED");
     ssd1306_fill(0);
