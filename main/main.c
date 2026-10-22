@@ -16,6 +16,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "my_check.h"
+#include "handle_cmd.h"
 
 // ---- change here/改这里 ----
 #define WIFI_SSID      "宇智波皮的iPhone"
@@ -42,10 +43,10 @@ SemaphoreHandle_t for_command = NULL;
 SemaphoreHandle_t buf_free[2]={NULL,NULL};//for mic and play
 
 static Header_t header;
-static Node_t node1={.name="motor",.label="1.Motor state",.state=MOTOR_CLOSE_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
-static Node_t node2={.name="led",.label="2.LED state",.state=LED_CLOSE_T,.state_index=led_state,.state_table=led_str_state,.list={NULL,NULL},.func=led_adjust};
-static Node_t node3={.name="volume",.label="3.Adjust volume",.state=VOLUME_DEFAULT_T,.state_index=volume_state,.state_table=volume_str_state,.list={NULL,NULL},.func=volume_adjust};
-static Node_t node4={.name="voice",.label="4.Switch voice",.state=STD_CHINESE_FM_MODEL,.state_index=voice_state,.state_table=voice_str_state,.list={NULL,NULL},.func=voice_adjust};
+Node_t node_motor={.name="motor",.label="1.Motor state",.state=MOTOR_CLOSE_T,.state_index=motor_state,.state_table=motor_str_state,.list={NULL,NULL},.func=motor_adjust};
+Node_t node_led={.name="led",.label="2.LED state",.state=LED_CLOSE_T,.state_index=led_state,.state_table=led_str_state,.list={NULL,NULL},.func=led_adjust};
+Node_t node_volume={.name="volume",.label="3.Adjust volume",.state=VOLUME_DEFAULT_T,.state_index=volume_state,.state_table=volume_str_state,.list={NULL,NULL},.func=volume_adjust};
+Node_t node_voice={.name="voice",.label="4.Switch voice",.state=STD_CHINESE_FM_MODEL,.state_index=voice_state,.state_table=voice_str_state,.list={NULL,NULL},.func=voice_adjust};
 
 #define REFRESH_VALUE 0xFF
 void wifi_change_to(void);
@@ -176,37 +177,13 @@ void Task_Command(void *parameter){
     while(1){
         if(xQueueReceive(command_queue, temp_command, portMAX_DELAY)==pdTRUE){
             xSemaphoreTake(for_command,portMAX_DELAY);
-            if(strcmp(temp_command,"led_on")==0){
-                Set_Level_LED(LED_DEFAULT_BRIGHTNESS);
-                node2.state=LED_DEFAULT_T; 
+            bool found=false;
+            found=handle_cmd(temp_command);
+            if(found == true){
+                ESP_LOGI("Task_Command","Match command:%s",temp_command);
             }
-            else if(strcmp(temp_command,"led_off")==0){
-                Set_Level_LED(LED_CLOSE);
-                node2.state=LED_CLOSE_T; 
-            }
-            else if(strcmp(temp_command,"motor_on")==0){
-                motor_set_speed(DEFAULT_SPEED);
-                node1.state=DEFAULT_SPEED_T; 
-            }
-            else if(strcmp(temp_command,"motor_off")==0){
-                motor_set_speed(MOTOR_CLOSE);
-                node1.state=MOTOR_CLOSE_T;
-            }
-            else if(strcmp(temp_command,"led_high")==0){
-                Set_Level_LED(LED_MAX_BRIGHTNESS);
-                node2.state=LED_MAX_T; 
-            }
-            else if(strcmp(temp_command,"led_middle")==0){
-                Set_Level_LED(LED_MIDDLE_BRIGHTNESS);
-                node2.state=LED_MIDDLE_T; 
-            }
-            else if(strcmp(temp_command,"motor_high")==0){
-                motor_set_speed(MAX_SPEED);
-                node1.state=MAX_SPEED_T; 
-            }
-            else if(strcmp(temp_command,"motor_middle")==0){
-                motor_set_speed(MIDDLE_SPEED);
-                node1.state=MIDDLE_SPEED_T; 
+            else{
+                ESP_LOGE("Task_Command","No match command:%s",temp_command);
             }
             xSemaphoreGive(for_command);
             int r=REFRESH_VALUE;
@@ -337,10 +314,10 @@ void app_main(void)
     WakeEngine_Init();INIT_CHECK_ERR(wakeup_init_err_cnt,"WAKEUP");
     
     list_init(&header);
-    list_insert_tail(&header,&node1);
-    list_insert_tail(&header,&node2);
-    list_insert_tail(&header,&node3);
-    list_insert_tail(&header,&node4);
+    list_insert_tail(&header,&node_motor);
+    list_insert_tail(&header,&node_led);
+    list_insert_tail(&header,&node_volume);
+    list_insert_tail(&header,&node_voice);
     if(list_isEmpty(&header)){
         ssd1306_draw_string(0, 16, "List is empty!");
         ssd1306_update();
