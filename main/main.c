@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include "sdkconfig.h"
+#include "esp_psram.h"
 #include "audio.h"
 #include "wifi.h"
 #include "ssd1306.h"
@@ -18,12 +20,13 @@
 #include "my_check.h"
 #include "handle_cmd.h"
 
-// ---- change here/改这里 ----
-#define WIFI_SSID      "宇智波皮的iPhone"
-#define WIFI_PASSWORD  "77777777"
+// ---- WiFi / server 配置：见 main/Kconfig.projbuild，用 idf.py menuconfig 修改 ----
+// 实际值存在 sdkconfig 里，而 sdkconfig 已被 .gitignore 忽略，不会进仓库
+#define WIFI_SSID      CONFIG_APP_WIFI_SSID
+#define WIFI_PASSWORD  CONFIG_APP_WIFI_PASSWORD
 
-#define SERVER_IP      "172.20.10.3"   // phone hotspot/手机热点：172.20.10.x，连同一热点后查电脑IP
-#define SERVER_PORT    8006
+#define SERVER_IP      CONFIG_APP_SERVER_IP   // phone hotspot/手机热点：172.20.10.x，连同一热点后查电脑IP
+#define SERVER_PORT    CONFIG_APP_SERVER_PORT
 
 static int16_t *rec_buf[2]={NULL,NULL};   // 录音双缓冲（malloc 到 PSRAM）
 static int rec_buf_index=0;   // 录音缓冲索引
@@ -343,14 +346,19 @@ void app_main(void)
 
     // ---- 5. 设后端地址 + 分配缓冲区 ----
     voice_set_server(SERVER_IP, SERVER_PORT);
-    rec_buf[0] = malloc(MAX_SAMPLES * sizeof(int16_t));
-    rec_buf[1] = malloc(MAX_SAMPLES * sizeof(int16_t));
-    play_buf = malloc(RECV_MAX   * sizeof(int16_t));
+    rec_buf[0] = heap_caps_malloc(MAX_SAMPLES * sizeof(int16_t),MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    rec_buf[1] = heap_caps_malloc(MAX_SAMPLES * sizeof(int16_t),MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    play_buf = heap_caps_malloc(RECV_MAX   * sizeof(int16_t),MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!rec_buf[0] || !rec_buf[1] || !play_buf) {
         printf("[Init] malloc failed! rec[0]=%p rec[1]=%p  play=%p\n", rec_buf[0], rec_buf[1], play_buf);
         while (1) vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    printf("[Init] rec=%d samples  play=%d samples\n", MAX_SAMPLES, RECV_MAX);
+    size_t free_size =  heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    printf("[Init] internal_sram_size=%zu bytes\n", free_size);
+    size_t psram_size = esp_psram_get_size();
+    printf("[Init] psram_total_size=%zu bytes\n", psram_size);
+
+    printf("[Init] rec=%zu samples  play=%zu samples  free_size=%zu bytes\n", MAX_SAMPLES, RECV_MAX, free_size);
 
     audio_queue=xQueueCreate(1, sizeof(struct msg));
     command_queue=xQueueCreate(1, sizeof(command));

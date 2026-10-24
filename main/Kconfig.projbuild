@@ -1,0 +1,29 @@
+menu "Chat Assistant Configuration"
+
+    config APP_WIFI_SSID
+        string "WiFi SSID"
+        default ""
+        help
+            Wi-Fi 名称。值保存在 sdkconfig 中，而 sdkconfig 已被 .gitignore
+            忽略，因此不会被提交到仓库；修改请运行 idf.py menuconfig。
+
+    config APP_WIFI_PASSWORD
+        string "WiFi password"
+        default ""
+        help
+            Wi-Fi 密码。注意：Kconfig 的 string 是明文，密码会出现在
+            sdkconfig、sdkconfig.h 和最终固件里，不要用这里的值保护真实
+            敏感网络。
+
+    config APP_SERVER_IP
+        string "Backend server IP"
+        default "172.20.10.3"
+        help
+            FastAPI 后端地址。手机热点一般是 172.20.10.x。
+
+    config APP_SERVER_PORT
+        int "Backend server port"
+        default 8006
+        range 1 65535
+
+endmenu

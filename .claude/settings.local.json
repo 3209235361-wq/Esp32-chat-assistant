@@ -13,7 +13,10 @@
       "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/components/esp_common/include/**)",
       "Bash(grep -rn \"main\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/project.cmake\" | grep -i \"require\\\\|component\" | head -20; echo \"---\"; grep -rn \"COMPONENT_REQUIRES_COMMON\\\\|requires all\\\\|main component\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/\"*.cmake | head -20)",
       "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/**)",
-      "Bash(sed -n '740,790p' \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/project.cmake\")"
+      "Bash(sed -n '740,790p' \"D:/Espressif/frameworks/esp-idf-v5.4.4/tools/cmake/project.cmake\")",
+      "Bash(echo \"=== IDF 根 Kconfig ===\"; cat \"D:/Espressif/frameworks/esp-idf-v5.4.4/Kconfig\"; echo \"=== 生成的 kconfigs_projbuild.in ===\"; cat \"D:/ESP32_project/Chat_Assistant/build/config/kconfigs_projbuild.in\" 2>/dev/null; echo \"=== 生成的 kconfigs.in \\(head\\) ===\"; head -5 \"D:/ESP32_project/Chat_Assistant/build/config/kconfigs.in\" 2>/dev/null)",
+      "Read(//d/Espressif/frameworks/esp-idf-v5.4.4/**)",
+      "Bash(grep -n \"COMPONENT_KCONFIGS_PROJBUILD\\\\|COMPONENT_KCONFIGS_SOURCE\" \"D:/Espressif/frameworks/esp-idf-v5.4.4/Kconfig\"; echo \"=== 生成文件 ===\"; find \"D:/ESP32_project/Chat_Assistant/build\" -maxdepth 3 -name \"*kconfigs*\" -o -maxdepth 3 -name \"Kconfig\" | head; echo \"=== 内容 ===\"; cat \"D:/ESP32_project/Chat_Assistant/build/kconfigs_projbuild.in\" 2>/dev/null | head)"
     ],
     "additionalDirectories": [
       "D:\\ESP32_project\\sample_project\\components"

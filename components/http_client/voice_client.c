@@ -146,7 +146,7 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     esp_err_t result;
     result=esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
     if(result!=ESP_OK){
-        ESP_LOGI(TAG_CLIENT,"HTTP set header failed");
+        ESP_LOGE(TAG_CLIENT,"HTTP set header failed result=%d",result);
         esp_http_client_cleanup(client);
         return false;
     }
@@ -154,14 +154,15 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
                                    (const char *)pcm_in,
                                    len_in * sizeof(int16_t));
     if(result!=ESP_OK){
-        ESP_LOGI(TAG_CLIENT,"HTTP set post field failed");
+        ESP_LOGE(TAG_CLIENT,"HTTP set post field failed result=%d",result);
         esp_http_client_cleanup(client);
         return false;
     }
 
     result=esp_http_client_perform(client);
     if (result != ESP_OK) {
-        ESP_LOGI(TAG_CLIENT,"HTTP perform failed result");
+        ESP_LOGE(TAG_CLIENT,"HTTP perform failed result=%d",result);
+        g_recv_buf = NULL;
         esp_http_client_cleanup(client);
         return false;
     }
@@ -180,6 +181,7 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     *len_out = g_recv_total / sizeof(int16_t);
     printf("[HTTP] 收到 %u bytes PCM (%d samples)\n",
            (unsigned)g_recv_total, (int)(*len_out));
+    printf("[HTTP] total: %u overflow: %d\n", (unsigned)g_recv_total, (int)g_recv_overflow);
     return (*len_out > 0);
 }
 
