@@ -1,7 +1,7 @@
 # I2S 音量（软件增益）波形振幅验证
 
 > 数据来源：逻辑分析仪抓取的 I2S 波形（`.sal` → 导出 CSV）
-> 采集文件：`Max_volume` / `Middle_volume` / `Defalut_volume`（同目录 `docus/`）
+> 采集文件：`Max_volume` / `Middle_volume` / `Default_volume`（同目录 `docs/`）
 > 分析日期：2026-10-16
 
 ## 一、方法与前置
