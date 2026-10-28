@@ -1,3 +1,5 @@
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/3209235361-wq/badge.svg)](https://hub.xerj.org/contributors/3209235361-wq)
+
 # ESP32-S3 AI 语音助手
 
 **说一句话，本地说出回复。** 唤醒词在设备端识别，ASR / LLM / TTS 在 PC 端完成，合成的语音以 PCM 回传、经 I2S 功放播放；本地 OLED 菜单在断网时依然可用，可独立调节电机、LED、音量与音色。
