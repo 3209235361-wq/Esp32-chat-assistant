@@ -95,7 +95,6 @@ void Task_AFE_Mic(void *parameter){
     while(1){
         vTaskDelay(pdMS_TO_TICKS(10));
         
-
         //读取麦克风数据,feed给afe_data
         if(afe_mic_read(in_buf,feed_chunk)!=feed_chunk*2){
             continue;
@@ -179,6 +178,12 @@ void Task_Handle_Play(void *parameter){
     size_t play_len=0; 
     while(1){
         if(xQueueReceive(audio_queue, &msg, portMAX_DELAY)==pdTRUE){
+            // if recorded samples is less than 1s, drop it
+            if(msg.samples <= 16000){
+                ESP_LOGI(TAG_PLAY,"recorded %d samples (<1s) , dropped , try again",msg.samples);
+                xSemaphoreGive(buf_free[msg.rec_buf_index]);
+                continue;
+            }
             play_len= RECV_MAX;
             bool ok=voice_send_receive(rec_buf[msg.rec_buf_index], msg.samples, play_buf, &play_len);
 
@@ -417,20 +422,26 @@ void app_main(void)
     audio_queue=xQueueCreate(1, sizeof(struct msg));
     command_queue=xQueueCreate(1, sizeof(command));
 
+    //----- quantifiable --------
     static temperature_sensor_handle_t tsens = NULL;
     static float chip_temp = 0.0f;
 
     temperature_sensor_config_t ts_cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
     temperature_sensor_install(&ts_cfg, &tsens);
     temperature_sensor_enable(tsens);
-    
+    //----- quantifiable --------
 
     xTaskCreate(Task_AFE_Mic, "Mic", 4096, NULL, 3, &task_handle);
     xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
     xTaskCreate(Task_Command, "Command", 4096, NULL, 1, NULL);
 
+    //----- quantifiable --------
     static int64_t last = 0;
+    //----- quantifiable --------
+
     while (1){
+
+        //----- quantifiable --------
         int64_t now=esp_timer_get_time();
         if(now-last > 600000000){//trigger every 10 min
             dump_stack_usage();
@@ -443,6 +454,8 @@ void app_main(void)
                      (unsigned)external_min_size, (unsigned)ps_cur_size, (unsigned)internal_mini_size, (unsigned)s_cur_size, chip_temp);   
             last=now;
         }
+        //----- quantifiable --------
+
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }

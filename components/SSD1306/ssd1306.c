@@ -205,6 +205,8 @@ void show_inside(Node_t *node){
         ssd1306_draw_pixel(0,k,SSD1306_WHITE);
         ssd1306_draw_pixel(127,k,SSD1306_WHITE);
     }
+    ssd1306_draw_string(8,1*8,"WiFi:");
+    ssd1306_draw_string(36,1*8,wifi_str_state[WiFi_isConnect()]);
     ssd1306_draw_string(24,2*8,"Device:");
     ssd1306_draw_string(66,2*8,node->name);
     ssd1306_draw_string(24,5*8,"State:");
