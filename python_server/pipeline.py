@@ -9,11 +9,14 @@ ASR → LLM → TTS → PCM 完整流水线
 
 import os
 import io
+import socket
 import asyncio
 import subprocess
 import tempfile
 import wave
+import time
 
+import aiohttp
 import dashscope
 from dashscope.audio.asr import Recognition
 from openai import OpenAI
@@ -24,7 +27,7 @@ import edge_tts
 DASHSCOPE_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 DEEPSEEK_KEY  = os.getenv("DEEPSEEK_API_KEY",  "")
 DEEPSEEK_URL  = "https://api.deepseek.com"
-SYSTEM_PROMPT = "你是一个友好的语音助手，回答简洁，不超过3句话。"
+SYSTEM_PROMPT = "你是一个友好的语音助手,回答简洁,回复一到两句,40字以内。"
 SPECIAL_REPLIES = {
     "开灯" : "好的，灯已打开",
     "关灯" : "好的，灯已关闭",
@@ -141,15 +144,31 @@ async def llm_chat(user_text: str, history: list[dict] = None) -> str:
 # ============================================================
 #  第3步: TTS — 文字 → MP3
 # ============================================================
+TTS_RETRIES = 2
+
 async def text_to_speech(text: str, voice: str = "zh-CN-XiaoyiNeural") -> bytes:
-    communicate = edge_tts.Communicate(text, voice)
-    mp3_buf = io.BytesIO()
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            mp3_buf.write(chunk["data"])
-    mp3 = mp3_buf.getvalue()
-    print(f"[TTS] → {len(mp3)} bytes MP3")
-    return mp3
+    # 强制 IPv4：手机热点/部分校园网的 IPv6 路由不可用，
+    # aiohttp 先连 IPv6 失败后不会回退到 IPv4，直接抛 WinError 64
+    last_err: Exception | None = None
+    for attempt in range(TTS_RETRIES + 1):
+        connector = aiohttp.TCPConnector(family=socket.AF_INET)
+        try:
+            communicate = edge_tts.Communicate(text, voice, connector=connector)
+            mp3_buf = io.BytesIO()
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    mp3_buf.write(chunk["data"])
+            mp3 = mp3_buf.getvalue()
+            print(f"[TTS] → {len(mp3)} bytes MP3")
+            return mp3
+        except Exception as e:
+            last_err = e
+            print(f"[TTS] 连接失败(第{attempt + 1}次): {e}")
+            if attempt < TTS_RETRIES:
+                await asyncio.sleep(0.5)
+        finally:
+            await connector.close()
+    raise last_err
 
 
 # ============================================================
@@ -186,9 +205,15 @@ def mp3_to_pcm(mp3_bytes: bytes, sample_rate: int = 16000) -> bytes:
 async def voice_pipeline(wav_bytes: bytes, voice:int = 0,history: list[dict] = None) -> tuple[bytes, str, str]:
     """一次调用走完四步，返回 (pcm_bytes, user_text, ai_text)"""
     print("\n" + "-" * 40)
+    t_all=time.perf_counter()
+
+    t=time.perf_counter()
     user_text = await speech_to_text(wav_bytes)
+    t_asr=time.perf_counter()-t
+
     if not user_text:
         return b"", "", ""
+    t=time.perf_counter()
     reply = get_special_reply(user_text)
     if reply:
         ai_text = reply
@@ -198,7 +223,17 @@ async def voice_pipeline(wav_bytes: bytes, voice:int = 0,history: list[dict] = N
     
     if not ai_text:
         return b"", user_text, ""
+    t_llm=time.perf_counter()-t
+
+    t=time.perf_counter()
     mp3       = await text_to_speech(ai_text,voice=VOICE_LIST[voice])
+    t_tts=time.perf_counter()-t
+
+    t=time.perf_counter()
     pcm       = mp3_to_pcm(mp3, 16000)
-    print(f"[Done] {len(wav_bytes)}B → '{user_text}' → '{ai_text}' → {len(pcm)}B PCM")
+    t_pcm=time.perf_counter()-t
+
+    t_end=time.perf_counter()-t_all
+    print(f"[Done] {len(wav_bytes)}B → '{user_text}' → '{ai_text}' → {len(pcm)}B PCM "
+          f"[Time] ASR={t_asr:.2f} LLM={t_llm:.2f} TTS={t_tts:.2f} PCM={t_pcm:.2f} Total={t_end:.2f}")
     return pcm, user_text, ai_text

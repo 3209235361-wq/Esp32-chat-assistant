@@ -132,7 +132,7 @@ bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
     esp_http_client_config_t cfg = {
         .url            = url,
         .method         = HTTP_METHOD_POST,
-        .timeout_ms     = 30000,
+        .timeout_ms     = 15000,
         .buffer_size    = 4096,
         .keep_alive_enable = true,
         .event_handler  = _http_event_handler,

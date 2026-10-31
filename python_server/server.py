@@ -160,7 +160,10 @@ async def chat(ws: WebSocket):
 # ============================================================
 @app.post("/voice")
 async def voice_http(request: Request):
+    t=time.perf_counter()
     pcm_body = await request.body()  # raw PCM bytes from ESP32
+    t_recv=time.perf_counter()-t
+    print(f"[接收] PCM, 耗时 {t_recv:.2f}s")
 
     sample_rate = int(request.query_params.get("sr", 16000))
     bit_depth   = int(request.query_params.get("bits", 16)) // 8

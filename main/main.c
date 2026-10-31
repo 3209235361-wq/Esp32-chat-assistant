@@ -19,6 +19,16 @@
 #include "freertos/semphr.h"
 #include "my_check.h"
 #include "handle_cmd.h"
+#include "esp_timer.h"
+#include "esp_system.h"
+#include "esp_heap_caps.h"
+#include "driver/temperature_sensor.h"
+
+//----- quantifiable --------
+static int64_t t2;
+static int64_t t3;
+static TaskHandle_t task_handle = NULL;
+//----- quantifiable --------
 
 // ---- WiFi / server 配置：见 main/Kconfig.projbuild，用 idf.py menuconfig 修改 ----
 // 实际值存在 sdkconfig 里，而 sdkconfig 已被 .gitignore 忽略，不会进仓库
@@ -33,6 +43,10 @@ static int rec_buf_index=0;   // 录音缓冲索引
 struct msg{
     int rec_buf_index;
     int samples;
+    //----- quantifiable --------
+    int64_t t0;
+    int64_t t1;
+    //----- quantifiable --------
 };
 static int16_t *play_buf = NULL;   // 播放缓冲
 const char *TAG_PLAY = "play";
@@ -74,7 +88,7 @@ void Task_AFE_Mic(void *parameter){
         ESP_LOGE(TAG_WAKEUP,"Task_AFE_Mic:in_buf malloc failed,inspect heap memory!");
         while(1) vTaskDelay(pdMS_TO_TICKS(100));
     }
-    struct msg msg={0,0};
+    struct msg msg={0,0,0,0};
     static int silence_frames=0;
     bool woken=false;
     int offset=0;
@@ -93,11 +107,17 @@ void Task_AFE_Mic(void *parameter){
 
         //唤醒检测
         if(!woken&&res->wakeup_state==WAKENET_DETECTED){
+
+            //----- quantifiable --------
+            msg.t0=esp_timer_get_time();
+            ESP_LOGI(TAG_WAKEUP,"start time(t0):%lld us",msg.t0);
+            //----- quantifiable --------
+
             xSemaphoreTake(buf_free[rec_buf_index],portMAX_DELAY);
             woken=true;
             silence_frames=0;
             offset=0;
-            ESP_LOGI(TAG_WAKEUP,"wake word! index=%d",res->wake_word_index);
+            ESP_LOGI(TAG_WAKEUP,"wake word! index=%d",res->wake_word_index);  
         }
 
         
@@ -110,6 +130,12 @@ void Task_AFE_Mic(void *parameter){
                 msg.rec_buf_index=rec_buf_index;
                 msg.samples=samples;
                 rec_buf_index=1-rec_buf_index;
+
+                //----- quantifiable --------
+                msg.t1=esp_timer_get_time();
+                ESP_LOGI(TAG_WAKEUP,"rec time(t1):%lld us",msg.t1);
+                //----- quantifiable --------
+                
                 xQueueSend(audio_queue, &msg, portMAX_DELAY);
                 offset=0;
                 silence_frames=0;
@@ -126,12 +152,17 @@ void Task_AFE_Mic(void *parameter){
             if(res->vad_state==VAD_SILENCE){
                 if(++silence_frames>=SILENCE_END_FRAMES){
                     ESP_LOGI(TAG_WAKEUP,"speech end");
-                    // ESP_LOGI(TAG_WAKEUP,"unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
                     woken=false;
                     int samples=offset/2;
                     msg.rec_buf_index=rec_buf_index;
                     msg.samples=samples;
                     rec_buf_index=1-rec_buf_index;
+
+                    //----- quantifiable --------
+                    msg.t1=esp_timer_get_time();
+                    ESP_LOGI(TAG_WAKEUP,"rec time(t1):%lld us",msg.t1);
+                    //----- quantifiable --------
+
                     xQueueSend(audio_queue, &msg, portMAX_DELAY);
                     offset=0;
                     silence_frames=0;
@@ -144,12 +175,18 @@ void Task_AFE_Mic(void *parameter){
     }
 }
 void Task_Handle_Play(void *parameter){
-    struct msg msg={0,0};
-    size_t play_len=0;
+    struct msg msg={0,0,0,0};
+    size_t play_len=0; 
     while(1){
         if(xQueueReceive(audio_queue, &msg, portMAX_DELAY)==pdTRUE){
             play_len= RECV_MAX;
             bool ok=voice_send_receive(rec_buf[msg.rec_buf_index], msg.samples, play_buf, &play_len);
+
+            //----- quantifiable --------
+            t2=esp_timer_get_time();
+            ESP_LOGI(TAG_PLAY,"net time(t2):%lld us",t2);
+            //----- quantifiable --------
+
             if(ok==false||play_len==0){
                 ESP_LOGE(TAG_PLAY,"voice_send_receive failed!");
                 xSemaphoreGive(buf_free[msg.rec_buf_index]);
@@ -158,13 +195,28 @@ void Task_Handle_Play(void *parameter){
             xSemaphoreGive(buf_free[msg.rec_buf_index]);
             //播放回复
             amp_enable(true);
+    
+            //----- quantifiable --------
+            t3=esp_timer_get_time();
+            ESP_LOGI(TAG_PLAY,"startup(amp_gpio reverse) time(t3):%lld us",t3);
+            int64_t rec=msg.t1-msg.t0;
+            int64_t net=t2-msg.t1;
+            int64_t startup=t3-t2;
+            int64_t total=t3-msg.t0;
+            ESP_LOGI(TAG_PLAY
+                ,"total time:%lld us,rec time:%lld us,net time:%lld us,startup(amp_gpio reverse) time:%lld us"
+                ,total,rec,net,startup);
+
+            ESP_LOGI(TAG_PLAY,"unused stack: play=%u bytes mic=%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL),
+                    (unsigned)uxTaskGetStackHighWaterMark(task_handle));
+            //----- quantifiable --------
+
             //播放容量改为最大，确保播放完整（ai回复大小一般会大于录音大小）
             spk_write(play_buf, play_len);
             vTaskDelay(pdMS_TO_TICKS(300));
             amp_enable(false);
             vTaskDelay(pdMS_TO_TICKS(100));
-
-            // ESP_LOGI("Handle_Play","unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
+            
 
             strncpy(command,voice_last_command(),sizeof(command)-1);
             command[sizeof(command)-1]='\0';            
@@ -184,9 +236,6 @@ void Task_Command(void *parameter){
             found=handle_cmd(temp_command);
             if(found == true){
                 ESP_LOGI("Task_Command","Match command:%s",temp_command);
-            }
-            else{
-                ESP_LOGE("Task_Command","No match command:%s",temp_command);
             }
             xSemaphoreGive(for_command);
             int r=REFRESH_VALUE;
@@ -285,7 +334,6 @@ void Task_OLED_Display(void *parameter){
             show_inside(node);
         }
         ssd1306_update();
-        // ESP_LOGI("OLED_Display","unused stack:%u bytes",(unsigned)uxTaskGetStackHighWaterMark(NULL));
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
@@ -353,27 +401,47 @@ void app_main(void)
         printf("[Init] malloc failed! rec[0]=%p rec[1]=%p  play=%p\n", rec_buf[0], rec_buf[1], play_buf);
         while (1) vTaskDelay(pdMS_TO_TICKS(1000));
     }
-    size_t free_size =  heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    printf("[Init] internal_sram_size=%zu bytes\n", free_size);
-    size_t psram_size = esp_psram_get_size();
-    printf("[Init] psram_total_size=%zu bytes\n", psram_size);
 
-    printf("[Init] rec=%zu samples  play=%zu samples  free_size=%zu bytes\n", MAX_SAMPLES, RECV_MAX, free_size);
+    size_t external_min_size = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
+    printf("[Init] external_min_size=%u bytes (lowest since boot)\n", (unsigned)external_min_size);
+    size_t ps_cur_size = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    printf("[Init] psram_current_size=%u bytes\n", (unsigned)ps_cur_size);
+
+    size_t internal_mini_size = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    printf("[Init] internal_min_size=%u bytes (lowest since boot)\n", (unsigned)internal_mini_size);
+    size_t s_cur_size =  heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    printf("[Init] heap_current_size=%u bytes\n", (unsigned)s_cur_size);
+
+    printf("[Init] rec=%zu samples  play=%zu samples  free_size=%u bytes\n", MAX_SAMPLES, RECV_MAX, (unsigned)s_cur_size);
 
     audio_queue=xQueueCreate(1, sizeof(struct msg));
     command_queue=xQueueCreate(1, sizeof(command));
+
+    static temperature_sensor_handle_t tsens = NULL;
+    static float chip_temp = 0.0f;
+
+    temperature_sensor_config_t ts_cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(20, 100);
+    temperature_sensor_install(&ts_cfg, &tsens);
+    temperature_sensor_enable(tsens);
     
 
-    xTaskCreate(Task_AFE_Mic, "Mic", 4096, NULL, 3, NULL);
+    xTaskCreate(Task_AFE_Mic, "Mic", 4096, NULL, 3, &task_handle);
     xTaskCreate(Task_Handle_Play, "Play", 8192, NULL, 2, NULL);
-    xTaskCreate(Task_Command, "Command", 2048, NULL, 1, NULL);
+    xTaskCreate(Task_Command, "Command", 4096, NULL, 1, NULL);
 
-    bool dumped = false;
+    static int64_t last = 0;
     while (1){
-        //print the stack unsued sizes after ten seconds,just once print
-        if (!dumped && xTaskGetTickCount() > pdMS_TO_TICKS(10000)) {
+        int64_t now=esp_timer_get_time();
+        if(now-last > 600000000){//trigger every 10 min
             dump_stack_usage();
-            dumped = true;
+            temperature_sensor_get_celsius(tsens, &chip_temp);
+            size_t external_min_size = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
+            size_t ps_cur_size = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+            size_t internal_mini_size = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            size_t s_cur_size =  heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            ESP_LOGI("MEM", "psram: min=%u | cur=%u heap: min=%u | cur=%u  temperature=%.1fC", 
+                     (unsigned)external_min_size, (unsigned)ps_cur_size, (unsigned)internal_mini_size, (unsigned)s_cur_size, chip_temp);   
+            last=now;
         }
         vTaskDelay(pdMS_TO_TICKS(500));
     }
