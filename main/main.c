@@ -69,7 +69,6 @@ Node_t node_voice={.name="voice",.label="4.Switch voice",.state=STD_CHINESE_FM_M
 void wifi_change_to(void);
 static void dump_stack_usage(void);
 
-
 //for wakeup
 extern i2s_chan_handle_t rx_handle;
 extern esp_afe_sr_data_t *afe_data;
@@ -80,7 +79,7 @@ static int afe_mic_read(int16_t *rec_buf,int samples){
     return (err==ESP_OK)?(int)rec_len:-1;//返回字节数
 }
 
-void Task_AFE_Mic(void *parameter){
+static void Task_AFE_Mic(void *parameter){
     //wakeword=你好小智
     int feed_chunk=afe_handle->get_feed_chunksize(afe_data);
     int16_t *in_buf=heap_caps_malloc(feed_chunk*2,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
@@ -119,7 +118,6 @@ void Task_AFE_Mic(void *parameter){
             ESP_LOGI(TAG_WAKEUP,"wake word! index=%d",res->wake_word_index);  
         }
 
-        
         //录音处理
         if(woken){
             //判断是否超过最大录音缓冲大小
@@ -173,7 +171,7 @@ void Task_AFE_Mic(void *parameter){
         
     }
 }
-void Task_Handle_Play(void *parameter){
+static void Task_Handle_Play(void *parameter){
     struct msg msg={0,0,0,0};
     size_t play_len=0; 
     while(1){
@@ -222,7 +220,6 @@ void Task_Handle_Play(void *parameter){
             amp_enable(false);
             vTaskDelay(pdMS_TO_TICKS(100));
             
-
             strncpy(command,voice_last_command(),sizeof(command)-1);
             command[sizeof(command)-1]='\0';            
             xQueueSend(command_queue, command , portMAX_DELAY);
@@ -231,8 +228,7 @@ void Task_Handle_Play(void *parameter){
     }
 }
 
-
-void Task_Command(void *parameter){
+static void Task_Command(void *parameter){
     static char temp_command[16];
     while(1){
         if(xQueueReceive(command_queue, temp_command, portMAX_DELAY)==pdTRUE){
@@ -250,7 +246,7 @@ void Task_Command(void *parameter){
     }
 }
 
-void Task_Key(void *parameter){
+static void Task_Key(void *parameter){
     static const int pin[4]={KEY_PIN_UP,KEY_PIN_DOWN,KEY_PIN_VERITY,KEY_PIN_EXIT};
     static const int value[4]={UP,DOWN,VERITY,EXIT};
     int last[4];
@@ -270,7 +266,7 @@ void Task_Key(void *parameter){
     }
 }
 
-void Task_OLED_Display(void *parameter){
+static void Task_OLED_Display(void *parameter){
     uint32_t key_state=UP;
     mList_t *original_list=header.head.next;
     static int oled_pos=OLED_OUTSIDE;
@@ -304,8 +300,7 @@ void Task_OLED_Display(void *parameter){
                 default:
                     show_outside(&header,original_list);
                     ssd1306_update();
-                    break;
-                
+                    break;          
                 }
             }
         else if(oled_pos == OLED_INSIDE){
@@ -328,8 +323,7 @@ void Task_OLED_Display(void *parameter){
                     show_inside(node);
                     ssd1306_update();
                     break;
-            }
-                
+            }     
         }
         if(oled_pos == OLED_OUTSIDE){
             show_outside(&header,original_list);
@@ -440,7 +434,6 @@ void app_main(void)
     //----- quantifiable --------
 
     while (1){
-
         //----- quantifiable --------
         int64_t now=esp_timer_get_time();
         if(now-last > 600000000){//trigger every 10 min
@@ -455,11 +448,9 @@ void app_main(void)
             last=now;
         }
         //----- quantifiable --------
-
         vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
-
 
 void wifi_change_to(void){
     int r=REFRESH_VALUE;
