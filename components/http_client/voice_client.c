@@ -4,6 +4,36 @@
 #include "esp_check.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+
+/* esp_http_client_perform(): error code mapping */
+static const voice_mapping_err_t table[8]=
+{
+    {ESP_ERR_HTTP_CONNECT,VOICE_ERR_NET},
+    {ESP_ERR_HTTP_CONNECTING,VOICE_ERR_NET},
+    {ESP_ERR_HTTP_WRITE_DATA,VOICE_ERR_TIMEOUT},
+    {ESP_ERR_HTTP_EAGAIN,VOICE_ERR_TIMEOUT},
+    {ESP_ERR_HTTP_READ_TIMEOUT,VOICE_ERR_TIMEOUT},
+    {ESP_ERR_HTTP_INCOMPLETE_DATA,VOICE_ERR_TIMEOUT},
+    {ESP_ERR_HTTP_CONNECTION_CLOSED,VOICE_ERR_TIMEOUT},
+    {ESP_ERR_HTTP_FETCH_HEADER,VOICE_ERR_TIMEOUT}
+};
+/* voice_err to string*/
+static const char *str[9]=
+{
+    "VOICE_OK",
+    "VOICE_ERR_NET",
+    "VOICE_ERR_TIMEOUT",
+    "VOICE_ERR_REQ",
+    "VOICE_ERR_SERVER",
+    "VOICE_ERR_EMPTY",
+    "VOICE_ERR_OVERFLOW",
+    "VOICE_ERR_UNKNOWN",
+    "VOICE_ERR_LOCAL",
+};
 
 static char g_host[64] = "192.168.1.1";
 static int  g_port = 8006;
@@ -109,82 +139,148 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 // ================================================================
 //  voice_send_receive() — POST 录音 → 收 PCM 回复
 // ================================================================
-bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
+Voice_Err voice_send_receive(const int16_t *pcm_in,  size_t len_in,
                               int16_t *pcm_out, size_t *len_out)
 {
-    strncpy(g_command,"none",sizeof(g_command)-1);
-    g_command[sizeof(g_command)-1]='\0';
-    strncpy(g_user_text,"",sizeof(g_user_text)-1);
-    g_user_text[sizeof(g_user_text)-1]='\0';
-    strncpy(g_ai_text,"",sizeof(g_ai_text)-1);
-    g_ai_text[sizeof(g_ai_text)-1]='\0';
-    char url[128+1];
-    snprintf(url, sizeof(url), "http://%s:%d/voice?sr=16000&bits=16&ch=1&voice=%d",
-             g_host, g_port, current_voice);
+    Voice_Err last=VOICE_ERR_UNKNOWN;
 
-    // 设置全局接收缓冲，事件回调会往里写数据
-    g_recv_buf   = (uint8_t *)pcm_out;
-    g_recv_max   = (*len_out) * sizeof(int16_t);
-    g_recv_total = 0;
-    g_recv_overflow = false;
+    for(int attempt=0;attempt<2;attempt++){
+        if(attempt>0){
+            // buffer time for retry
+            vTaskDelay(pdMS_TO_TICKS(400));
+            ESP_LOGW(TAG_CLIENT, "retry %d/1, reason=%s", attempt, voice_err_to_str(last));
+        }
 
+        strncpy(g_command,"none",sizeof(g_command)-1);
+        g_command[sizeof(g_command)-1]='\0';
+        strncpy(g_user_text,"",sizeof(g_user_text)-1);
+        g_user_text[sizeof(g_user_text)-1]='\0';
+        strncpy(g_ai_text,"",sizeof(g_ai_text)-1);
+        g_ai_text[sizeof(g_ai_text)-1]='\0';
+        char url[128+1];
+        snprintf(url, sizeof(url), "http://%s:%d/voice?sr=16000&bits=16&ch=1&voice=%d",
+        g_host, g_port, current_voice);
 
-    esp_http_client_config_t cfg = {
-        .url            = url,
-        .method         = HTTP_METHOD_POST,
-        .timeout_ms     = 15000,
-        .buffer_size    = 4096,
-        .keep_alive_enable = true,
-        .event_handler  = _http_event_handler,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&cfg);
-    if(client == NULL){
-        ESP_LOGI(TAG_CLIENT,"HTTP init failed");
-        return false;
-    }
+        // 设置全局接收缓冲，事件回调会往里写数据
+        g_recv_buf   = (uint8_t *)pcm_out;
+        g_recv_max   = (*len_out) * sizeof(int16_t);
+        g_recv_total = 0;
+        g_recv_overflow = false;
 
-    esp_err_t result;
-    result=esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
-    if(result!=ESP_OK){
-        ESP_LOGE(TAG_CLIENT,"HTTP set header failed result=%d",result);
+        esp_http_client_config_t cfg = {
+            .url            = url,
+            .method         = HTTP_METHOD_POST,
+            .timeout_ms     = 15000,
+            .buffer_size    = 4096,
+            .keep_alive_enable = true,
+            .event_handler  = _http_event_handler,
+        };
+        /* Init */
+        esp_http_client_handle_t client = esp_http_client_init(&cfg);
+        if(client == NULL){
+            ESP_LOGE(TAG_CLIENT,"HTTP init failed");
+            g_recv_buf = NULL;
+            return VOICE_ERR_LOCAL;
+        }
+
+        /* Set header */
+        esp_err_t result;
+        result=esp_http_client_set_header(client, "Content-Type", "application/octet-stream");
+        if(result!=ESP_OK){
+            ESP_LOGE(TAG_CLIENT,"HTTP set header failed result=%d",result);
+            g_recv_buf = NULL;
+            esp_http_client_cleanup(client);
+            return VOICE_ERR_LOCAL;
+        }
+        
+        /* Set post field */
+        result=esp_http_client_set_post_field(client,
+                                    (const char *)pcm_in,
+                                    len_in * sizeof(int16_t));
+        if(result!=ESP_OK){
+            ESP_LOGE(TAG_CLIENT,"HTTP set post field failed result=%d",result);
+            g_recv_buf = NULL;
+            esp_http_client_cleanup(client);
+            return VOICE_ERR_LOCAL;
+        }
+
+        /* Perform */
+        result=esp_http_client_perform(client);
+        if (result != ESP_OK) {
+            int e=esp_http_client_get_errno(client);
+            ESP_LOGE(TAG_CLIENT, "perform failed: %s (0x%x), errno=%d (%s)",
+                 esp_err_to_name(result), result, e, strerror(e));
+            g_recv_buf = NULL;
+            esp_http_client_cleanup(client);
+            /* travel through the voice_mapping table */
+            bool try_again = false;
+            for(int i=0;i<8;i++){
+                if(table[i].err==result){
+                    if(table[i].voice_err == VOICE_ERR_TIMEOUT){
+                        try_again = true;
+                        last=table[i].voice_err;
+                        break;
+                    }
+                    else{
+                        return table[i].voice_err;
+                    }
+                }
+            }
+            if(try_again) continue;
+            else return VOICE_ERR_UNKNOWN;   
+        }
+
+        /* Get status code */
+        int status = esp_http_client_get_status_code(client);
+        ESP_LOGI(TAG_CLIENT, "[HTTP] status: %d", status);
+
         esp_http_client_cleanup(client);
-        return false;
-    }
-    result=esp_http_client_set_post_field(client,
-                                   (const char *)pcm_in,
-                                   len_in * sizeof(int16_t));
-    if(result!=ESP_OK){
-        ESP_LOGE(TAG_CLIENT,"HTTP set post field failed result=%d",result);
-        esp_http_client_cleanup(client);
-        return false;
-    }
 
-    result=esp_http_client_perform(client);
-    if (result != ESP_OK) {
-        ESP_LOGE(TAG_CLIENT,"HTTP perform failed result=%d",result);
+        // 清理全局指针，避免野指针
         g_recv_buf = NULL;
-        esp_http_client_cleanup(client);
-        return false;
+
+        /* tackle status code
+            case 200: (ok) or (overflow | empty)
+            case 204: no content
+            default: 4xx | 5xx -> req | server
+        */
+        switch(status){
+            case 200:
+                if(g_recv_overflow) return VOICE_ERR_OVERFLOW;
+                if(g_recv_total == 0){
+                    ESP_LOGW(TAG_CLIENT,"The size of received data(%u) is 0.",(unsigned)g_recv_total);
+                    return VOICE_ERR_EMPTY;
+                }
+                break;
+            case 204:
+                return VOICE_ERR_EMPTY;
+            default:
+                {
+                    Voice_Err voice_err = (status >= 500) ? VOICE_ERR_SERVER : VOICE_ERR_REQ;
+                    if(voice_err == VOICE_ERR_SERVER){
+                        last=voice_err;
+                        continue;
+                    }
+                    else{
+                        return voice_err;
+                    }
+                }
+        }
+
+        *len_out = g_recv_total / sizeof(int16_t);
+        ESP_LOGI(TAG_CLIENT, "[HTTP] recvice %u bytes PCM (%d samples)\n",
+            (unsigned)g_recv_total, (int)(*len_out));
+        ESP_LOGI(TAG_CLIENT, "[HTTP] total: %u overflow: %d\n", (unsigned)g_recv_total, (int)g_recv_overflow);
+        return VOICE_OK;
     }
-
-    int status = esp_http_client_get_status_code(client);
-    printf("[HTTP] status: %d\n", status);
-
-    esp_http_client_cleanup(client);
-
-    // 清理全局指针，避免野指针
-    g_recv_buf = NULL;
-
-    if (status != 200) return false;
-    if(g_recv_overflow) return false;
-
-    *len_out = g_recv_total / sizeof(int16_t);
-    printf("[HTTP] 收到 %u bytes PCM (%d samples)\n",
-           (unsigned)g_recv_total, (int)(*len_out));
-    printf("[HTTP] total: %u overflow: %d\n", (unsigned)g_recv_total, (int)g_recv_overflow);
-    return (*len_out > 0);
+    return last;
 }
 
 void vocal_line_set(int model){
     current_voice=model;
+}
+
+const char *voice_err_to_str(Voice_Err err){
+    if(err<VOICE_OK || err>VOICE_ERR_LOCAL) return "unknown error";
+    return str[err];
 }

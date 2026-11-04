@@ -1,7 +1,8 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
+#include <esp_err.h>
+
 
 #define STD_CHINESE_FM "Chinese FM"
 #define STD_CHINESE_M "Chinese M"
@@ -17,14 +18,33 @@ enum VoiceModel {
     ENGLISH_M_MODEL,    
 };
 
+/* Error path inspection */
+typedef enum VoiceError {
+    VOICE_OK = 0,
+    VOICE_ERR_NET,          // 根本没连上：断网 / 服务端没开
+    VOICE_ERR_TIMEOUT,      // 连上了但等太久
+    VOICE_ERR_REQ,          // 4xx：请求本身有问题
+    VOICE_ERR_SERVER,       // 5xx：服务端出错
+    VOICE_ERR_EMPTY,        // 204 / 200 但没音频
+    VOICE_ERR_OVERFLOW,     // 响应超出 play_buf
+    VOICE_ERR_UNKNOWN,      // 未知错误
+    VOICE_ERR_LOCAL,        // 本地错误
+} Voice_Err;
+
+typedef struct Voice_mapping_err {
+    esp_err_t err;
+    Voice_Err voice_err;
+}voice_mapping_err_t;
+
 // ---- 发送录音，接收 AI 回复 ----
 // pcm_in:   录制的 PCM 数据 (int16_t 数组)
 // len_in:   采样点个数
 // pcm_out:  输出的 PCM 缓冲区（调用者分配好空间）
 // len_out:  输入时 = 缓冲区最大采样点数，输出时 = 实际填充的采样点数
-// 返回:     true=成功, false=失败
-bool voice_send_receive(const int16_t *pcm_in,  size_t len_in,
+// 返回:     错误码
+Voice_Err voice_send_receive(const int16_t *pcm_in,  size_t len_in,
                               int16_t *pcm_out, size_t *len_out);
+const char *voice_err_to_str(Voice_Err err);
 
 // ---- 设置服务器地址（初始化时调一次）----
 void voice_set_server(const char *host, int port);

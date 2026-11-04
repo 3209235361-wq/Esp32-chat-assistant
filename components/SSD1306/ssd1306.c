@@ -173,6 +173,7 @@ void ssd1306_update(void)
 
 
 void show_outside(Header_t *header,mList_t *list){
+    /* fill the screen with zero */
     ssd1306_fill(0);
     for(int i=0;i<128;i++){
         ssd1306_draw_pixel(i,0,SSD1306_WHITE);
@@ -196,6 +197,7 @@ void show_outside(Header_t *header,mList_t *list){
 }
 
 void show_inside(Node_t *node){
+    /* fill the screen with zero */
     ssd1306_fill(0);
     for(int i=0;i<128;i++){
         ssd1306_draw_pixel(i,0,SSD1306_WHITE);

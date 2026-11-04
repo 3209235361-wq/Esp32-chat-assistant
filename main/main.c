@@ -183,15 +183,15 @@ static void Task_Handle_Play(void *parameter){
                 continue;
             }
             play_len= RECV_MAX;
-            bool ok=voice_send_receive(rec_buf[msg.rec_buf_index], msg.samples, play_buf, &play_len);
+            Voice_Err voice_err=voice_send_receive(rec_buf[msg.rec_buf_index], msg.samples, play_buf, &play_len);
 
             //----- quantifiable --------
             t2=esp_timer_get_time();
             ESP_LOGI(TAG_PLAY,"net time(t2):%lld us",t2);
             //----- quantifiable --------
 
-            if(ok==false||play_len==0){
-                ESP_LOGE(TAG_PLAY,"voice_send_receive failed!");
+            if(voice_err!=VOICE_OK||play_len==0){
+                ESP_LOGE(TAG_PLAY,"voice_send_receive failed! Error = %s",voice_err_to_str(voice_err));
                 xSemaphoreGive(buf_free[msg.rec_buf_index]);
                 continue;
             }
@@ -436,7 +436,8 @@ void app_main(void)
     while (1){
         //----- quantifiable --------
         int64_t now=esp_timer_get_time();
-        if(now-last > 600000000){//trigger every 10 min
+        /* trigger every 10 min */
+        if(now-last > 600000000){
             dump_stack_usage();
             temperature_sensor_get_celsius(tsens, &chip_temp);
             size_t external_min_size = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
