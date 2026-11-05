@@ -4,6 +4,7 @@
 
 **说一句话，本地说出回复。** 唤醒词在设备端识别，ASR / LLM / TTS 在 PC 端完成，合成的语音以 PCM 回传、经 I2S 功放播放；本地 OLED 菜单在断网时依然可用，可独立调节电机、LED、音量与音色。
 
+[![build](https://github.com/3209235361-wq/Esp32-chat-assistant/actions/workflows/build.yml/badge.svg)](https://github.com/3209235361-wq/Esp32-chat-assistant/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.4-blue)
 ![MCU](https://img.shields.io/badge/MCU-ESP32--S3%20N16R8-green)
@@ -114,6 +115,8 @@ python_server/
   server.py         FastAPI：POST /voice（HTTP）+ WS /chat
   pipeline.py       ASR → LLM → TTS → PCM 全链路
 docs/              调试记录与测试报告：I2S 音量振幅分析、双缓冲设计、9 小时稳定性测试（含原始日志）
+.github/workflows/build.yml  CI：ESP-IDF v5.4.4 交叉编译 + 固件产物上传
+sdkconfig.defaults  可复现构建的非敏感配置（WiFi 与后端地址仍走 menuconfig，不进仓库）
 partitions.csv      分区表
 ```
 
@@ -261,6 +264,8 @@ python server.py                         # 监听 0.0.0.0:8006
 ```
 
 启动后终端会打印 `POST http://<ip>:8006/voice` 与 `WS /chat` 两个入口；设备使用前者。
+
+**持续集成**：push 到 `main` 或开 PR 时，GitHub Actions 在 `espressif/idf:v5.4.4` 镜像里跑 `idf.py build`，并把 app / bootloader / 分区表 / 唤醒词模型四个产物作为 artifact 上传。构建配置由 `sdkconfig.defaults` 复现，其中不含 WiFi 密码与后端地址。
 
 ## 已知限制
 
