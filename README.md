@@ -85,11 +85,11 @@ sequenceDiagram
 **设备侧接口**
 
 ```c
-bool voice_send_receive(const int16_t *pcm_in, size_t len_in,
-                        int16_t *pcm_out, size_t *len_out);
+Voice_Err voice_send_receive(const int16_t *pcm_in, size_t len_in,
+                             int16_t *pcm_out, size_t *len_out);
 ```
 
-输入 / 输出均为 16 kHz、16 bit、单声道裸 PCM；响应头携带识别文本、回复文本与语音指令（URL 编码）。
+输入 / 输出均为 16 kHz、16 bit、单声道裸 PCM；响应头携带识别文本、回复文本与语音指令（URL 编码）。返回 `Voice_Err` 枚举，失败原因分为 NET / TIMEOUT / REQ / SERVER / EMPTY / OVERFLOW / LOCAL / UNKNOWN，`voice_err_to_str()` 可直接用于日志。
 
 **分区表**：`nvs` 24 KB · `phy_init` 4 KB · `factory` 6 MB · `model` 2 MB（唤醒词模型独立分区）
 
@@ -212,6 +212,24 @@ TTS 耗时几乎不随文本长度变化 —— 主要开销在 WebSocket 建连
 - 修复：增加 `g_recv_overflow` 标志，溢出时记录实际/上限字节数并让本次请求返回失败
 - 回归：超长回复会打印告警并走失败分支，不再播放半截音频
 
+**#4 七处失败点全塌缩成一个 `false`，线上无法定位**
+
+- 现象：日志里只有一句 `voice_send_receive failed!`。用户说太短（400）、断网（连接失败）、服务端 500 在日志里长得一模一样，只能靠重启服务端、换网络逐个排除
+- 原因：接口返回 `bool`，从 client 创建到响应体的七处失败点全部 `return false`，调用方只知道"失败了"，不知道"哪一类失败"
+- 修复：改为 `Voice_Err` 枚举（NET / TIMEOUT / REQ / SERVER / EMPTY / OVERFLOW / LOCAL / UNKNOWN）；`esp_http_client_perform()` 的返回值查映射表归类，HTTP 状态码用 `status >= 500` 兜底分类；失败日志打印错误名
+- 重试策略：只对 TIMEOUT 和 5xx 各重试一次，间隔 400 ms。NET / REQ / EMPTY / OVERFLOW / LOCAL 都是确定性失败，重试结果不变，立即返回
+- 回归：向服务端注入 500 / 204 / 400 / 16 s 延迟，外加不启动服务端，逐条验证
+
+| 注入方式 | 实测错误码 | 重试 | 实测耗时 |
+|---|---|---|---|
+| 服务端不启动 | `VOICE_ERR_NET` | 否 | 15.0 s（连接超时） |
+| handler 抛 500 | `VOICE_ERR_SERVER` | 是，1 次 | 1.0 s |
+| 返回 204 | `VOICE_ERR_EMPTY` | 否 | 0.19 s |
+| 返回 400 | `VOICE_ERR_REQ` | 否 | 0.22 s |
+| handler 睡 16 s | `VOICE_ERR_TIMEOUT` | 是，1 次 | 30.8 s |
+
+> 坑：读超时返回的是 `ESP_ERR_HTTP_EAGAIN`（"Connection timed out before data was ready!"），不是 `ESP_ERR_HTTP_READ_TIMEOUT`。只映射后者的话，超时会掉进 `VOICE_ERR_UNKNOWN`。
+
 ## 构建与运行
 
 **设备侧**（ESP-IDF v5.4）
@@ -247,7 +265,8 @@ python server.py                         # 监听 0.0.0.0:8006
 ## 已知限制
 
 - **全链路串行**：录音 → 上传 → ASR → LLM → TTS → 下载 → 播放，每段都等前一段彻底结束；实测「唤醒 → 收到音频」5.5 – 15.3 s，其中 LLM 占 2.6 – 5.1 s
-- **短语音无反馈**：唤醒后录音不足 1 秒会被服务端以 `400` 拒绝（音频长度校验），设备端只打一条错误日志，用户听不到任何提示
+- **短语音无反馈**：录音不足 1 秒（`samples <= 16000`）在设备端直接丢弃，省掉一次无意义的上传；但用户侧听不到任何提示，表现是"唤醒了但没反应"
+- **失败重试会拉长最坏耗时**：超时与 5xx 各重试一次，读超时的情况下单轮最长约 30 s（两次 15 s 超时 + 400 ms 间隔）
 - **音频未压缩**：上行 111 KB / 下行 486 KB，弱网环境下网络占比显著
 - **依赖公网 API**：ASR / LLM / TTS 延迟受服务商与网络影响，不可控
 - **VAD 尾部固定 16 帧**（约 0.5 s），对环境噪声偏保守
