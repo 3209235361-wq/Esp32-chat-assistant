@@ -369,9 +369,8 @@ void app_main(void)
     list_insert_tail(&header,&node_volume);
     list_insert_tail(&header,&node_voice);
     if(list_isEmpty(&header)){
-        ssd1306_draw_string(0, 16, "List is empty!");
-        ssd1306_update();
-        return;
+        printf("[Init] List is empty!\n");
+        while(1) vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
     // ---- 2. 先拉起 UI 任务 ----
