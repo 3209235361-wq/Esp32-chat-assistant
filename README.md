@@ -1,4 +1,3 @@
-[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/3209235361-wq/badge.svg)](https://hub.xerj.org/contributors/3209235361-wq)
 
 # ESP32-S3 AI 语音助手
 
@@ -8,6 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![ESP-IDF](https://img.shields.io/badge/ESP--IDF-v5.4-blue)
 ![MCU](https://img.shields.io/badge/MCU-ESP32--S3%20N16R8-green)
+[![XERJ Corpus Hub contributor](https://hub.xerj.org/contributors/3209235361-wq/badge.svg)](https://hub.xerj.org/contributors/3209235361-wq)
 
 `C` · `ESP-IDF v5.4` · `FreeRTOS` · `esp-sr (AFE + WakeNet)` · `I2S / I2C / LEDC` · `HTTP` · `FastAPI + Python` · `DashScope ASR` · `DeepSeek LLM` · `Edge-TTS`
 
