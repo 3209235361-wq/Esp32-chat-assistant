@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "my_check.h"
+#include "esp_timer.h"
 
 const char *TAG_AUDIO = "audio";
 
@@ -86,19 +87,51 @@ void Audio_Init(void)
 // 每个样本16位有符号整数
 void spk_write(const int16_t *sample_data,size_t count){
     //i2s stereo的数据格式是：l0 r0 l1 r1 ...
-    //因为只写左声道，所以要而外填充右声道数据
+    //虽然只写左声道，但是为了保持双声道格式，需要填充右声道数据
     size_t written_bytes=0;
     int16_t stereo[512];//buffer for stereo data
 
-    for(size_t i=0;i<count;i+=256){//One round handles 256 datas.
+    //----- fault analysis --------
+    int64_t t_start=esp_timer_get_time();
+    int64_t audio_us=0;
+    int64_t max_behind=-90000,behind=0;
+    int64_t worst_at_us=0;
+    //----- fault analysis --------
+
+    for(size_t i=0;i<count;i+=256){//One round handles 256 datas. 
+        
+        //----- fault analysis --------
+        behind=(esp_timer_get_time()-t_start)-audio_us;
+        //skip: first round,just fill time,not represent the state of queue
+        if(i != 0){
+            if(behind>max_behind){
+                max_behind=behind;
+                worst_at_us=esp_timer_get_time()-t_start;
+            }
+        }
+        //----- fault analysis --------
+
         size_t n=(i+256<=count)?256:(count-i);
         for(int j=0;j<n;j++){
             stereo[j*2]=(sample_data[i+j]*current_volume)/VOLUME_MAX;
             stereo[j*2+1]=(sample_data[i+j]*current_volume)/VOLUME_MAX;
         }
         i2s_channel_write(tx_handle,stereo,sizeof(int16_t)*n*2,&written_bytes,portMAX_DELAY);
-    }
 
+        //----- fault analysis --------
+        audio_us+=n*1000000/SAMPLE_RATE; //s->us
+        //----- fault analysis --------
+    }   
+    //----- fault analysis --------
+    if(max_behind>=0){
+        ESP_LOGW(TAG_AUDIO,"[i2s] play=%llds worst_behind= %lld ms , at %lld ms underrun.",
+            audio_us/1000000,max_behind/1000,worst_at_us/1000);
+    }
+    else{
+        ESP_LOGI(TAG_AUDIO,"[i2s] play=%llds worst_behind= %lld ms , not underrun.",
+            audio_us/1000000,max_behind/1000);
+    }
+    //----- fault analysis --------
 }
 
 //控制功放
