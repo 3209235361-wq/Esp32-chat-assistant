@@ -5,8 +5,6 @@
 #include "Monitor.h"
 #include "led.h"
 #include <string.h>
-//if you want to add more command gears for device,change it.
-//but this design ideas is:each device has 4 command gears.
 #define GEAR_TOTAL 8 
 
 extern Node_t node_motor;
