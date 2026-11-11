@@ -69,7 +69,7 @@ sequenceDiagram
     participant C as Cloud services
     U->>E: wake word "Ni Hao Xiao Zhi"
     E->>E: AFE detects the wake word, start recording
-    U->>E: speak; VAD ends the recording after 16 consecutive silent frames
+    U->>E: speak, VAD ends the recording after 16 consecutive silent frames
     E->>P: POST /voice?sr=16000&bits=16&ch=1&voice=0 (raw PCM)
     P->>C: Paraformer ASR
     C-->>P: text
