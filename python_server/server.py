@@ -34,7 +34,6 @@ def handle_command(user: str , headers: dict[str,str]) -> None:
         elif "关" in user or "灭" in user:
             command = "led_off"
         
-    
     if "电机" in user:
         if "高档" in user:
             command = "motor_high"
@@ -44,7 +43,26 @@ def handle_command(user: str , headers: dict[str,str]) -> None:
             command = "motor_on"
         elif "停" in user or "关" in user:
             command = "motor_off"
-        
+
+    if "音量" in user or "静音" in user:
+        if "高" in user:
+            command = "volume_high"
+        elif "中" in user:
+            command = "volume_default"
+        elif "低" in user:
+            command = "volume_middle"
+        elif "静音" in user:
+            command = "volume_close"
+
+    if "声线" in user:
+        if "女声" in user:
+            command = "voice_female"
+        elif "男声" in user:
+            command = "voice_male"
+        elif "粤语" in user:
+            command = "voice_hk"
+        elif "英语" in user:
+            command = "voice_en_us"
     
     if command != "none":
         headers["X-Command"] = command
